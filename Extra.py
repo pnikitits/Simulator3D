@@ -1,6 +1,5 @@
 import numpy as np
-G = 0.01 #6.67e-11 # 
-M = 2000 #5.972e24 # 
+from Constants import *
 
 
 
@@ -43,7 +42,7 @@ def normalize_vector(vector):
 def normalize_vector(vector):
     norm = np.linalg.norm(vector)
     if norm == 0:
-        return vector  # Or handle this case as needed, maybe return None or raise an error
+        return vector # Or handle this case as needed, maybe return None or raise an error
     return vector / norm
 
 def calculate_distance(v1 , v2):
@@ -105,32 +104,6 @@ def calc_semi_minor_axis(a , e):
 
     b = a * np.sqrt(1 - e**2)
     return b
-
-
-
-def average_over_chunks_with_none(values , stride=5):
-    out_ = []
-
-    for i, value in enumerate(values):
-        if i % stride == 0:
-            out_.append(np.mean(values[i:i+stride]))
-        else:
-            out_.append(0)
-    print(len(out_)) 
-    out_ = list(out_)
-    print(out_)
-
-    
-    for i in range(0 , len(out_) , stride):
-        sub_rg = np.linspace(out_[i] , out_[i+stride-1] , stride)
-        for j in range(0 , stride-1):
-            out_[i+j] = sub_rg[j]
-
-    print(out_)
-
-
-    return out_
-    
 
 
 

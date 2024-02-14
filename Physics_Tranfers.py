@@ -1,6 +1,6 @@
 import numpy as np
-from Extra import G , M
-from planet_sat import Satellite
+from Constants import *
+from Satellite import Satellite
 
 
 def hohmann_dv(r1 , r2):

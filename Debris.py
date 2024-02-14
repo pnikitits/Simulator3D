@@ -1,5 +1,5 @@
 import numpy as np
-from Extra import G , M
+from Main import G , M
 import math
 import random
 from datetime import datetime, timedelta

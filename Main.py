@@ -1,51 +1,112 @@
-from panda3d.core import AmbientLight , DirectionalLight , Point3 , MouseButton , Vec3 , KeyboardButton , TextureStage
+import numpy as np
+import matplotlib.pyplot as plt
+from scipy.spatial.transform import Rotation as R
+import random
+
+from Constants import *
+from Extra import *
+from LineManager import *
+from Physics_Tranfers import *
+from Satellite import *
+
+from panda3d.core import AmbientLight , DirectionalLight , Point3 , MouseButton
+from panda3d.core import Vec3 , KeyboardButton , TextureStage , TransparencyAttrib
+from panda3d.core import LightAttrib , NodePath , CardMaker , NodePath , TextNode
+
 from direct.showbase.ShowBase import ShowBase
 from direct.task import Task
-from math import radians, sin, cos
-import numpy as np
-from Extra import *
-# from Planet import *
-from Debris import *
-from line_manager import LineManager
-
 from direct.gui.OnscreenText import OnscreenText
-from panda3d.core import TextNode
 from direct.gui.OnscreenImage import OnscreenImage
-from panda3d.core import TransparencyAttrib , LightAttrib
-from panda3d.core import LineSegs , NodePath , CardMaker , NodePath
-import matplotlib.pyplot as plt
-from Physics_Tranfers import *
-# from rk4 import J2
 
-from planet_sat import Satellite , orbital_elements , J2
-DT = 1/60
-N_log = 2000
+
+
+
 
 class MyApp(ShowBase):
 
     def __init__(self):
         ShowBase.__init__(self)
-        
         self.setup_scene()
 
-        self.taskMgr.add(self.check_keys, "check_keys_task")
-        self.taskMgr.doMethodLater(DT, self.renderer, 'renderer')
+
+        otv_init_elements = orbital_elements(inclination=0,
+                                             raan=0,
+                                             eccentricity=0,
+                                             arg_perigee=0,
+                                             mean_anomaly=0,
+                                             a=2)
+        self.otv , self.otv_node = self.make_object(elements=otv_init_elements)
+        
+
+        target_init_elements = orbital_elements(inclination=0,
+                                                raan=0,
+                                                eccentricity=0,
+                                                arg_perigee=0,
+                                                mean_anomaly=0,
+                                                a=3)
+        self.target , self.target_node = self.make_object(elements=target_init_elements)
 
 
-        self.accept("space" , self.on_space_pressed)
+        self.do_hohmann = True
+        self.hohmann_a1 = 2
+        self.hohmann_a2 = 3
 
-        # Show planes
-        self.accept("a" , self.on_a_pressed)
-        self.accept("z" , self.on_z_pressed)
+        self.do_transfer_inc = False
+        self.transfer_inc1 = 0
+        self.transfer_inc2 = 10
 
-        self.game_is_paused = False
+        self.do_transfer_raan = False
+        self.transfer_raan1 = 0
+        self.transfer_raan2 = 10
+
 
         self.setup_hohmann_transfer_params()
         self.setup_inc_transfer_params()
         self.setup_raan_transfer_params()
 
 
-    
+        self.taskMgr.add(self.check_keys, "check_keys_task")
+        self.taskMgr.doMethodLater(DT, self.renderer, 'renderer')
+
+
+        self.accept("space" , self.on_space_pressed)
+        self.game_is_paused = False
+        self.accept("a" , self.on_a_pressed) # Show planes
+        
+
+        
+
+
+    def setup_scene(self):
+        self.setup_log_arrays()
+        self.setup_skybox()
+        self.setup_camera()
+        self.setup_nodes()
+        self.setup_lights()
+        self.setup_hud()
+
+
+    def renderer(self, task):
+
+        if not self.game_is_paused:
+            rotate_object(self.earth , [0.05 , 0 , 0])
+            rotate_object(self.cloud , [0.05 , 0 , 0])
+
+            self.otv.update(dt=DT)
+            self.target.update(dt=DT)
+            self.env_visual_update()
+            
+            if self.do_hohmann:
+                self.make_hohmann_transfer()
+            if self.do_transfer_inc:
+                self.make_inc_transfer()
+            if self.do_transfer_raan:
+                self.make_raan_transfer()
+
+            self.log_values()
+
+        return Task.cont
+        
 
     
 
@@ -63,17 +124,14 @@ class MyApp(ShowBase):
         i = self.otv.elements.inclination
         raan = self.otv.elements.raan
 
-        if raan < 180:
-            raan += 360
 
         e = self.otv.elements.eccentricity
-        # arg_perigee = self.otv.elements.arg_perigee
-        # mean_anomaly = self.otv.elements.mean_anomaly
         a = self.otv.elements.a
         inst_r = np.linalg.norm(self.otv.position)
 
 
         self.log_a.append(inst_r)
+        self.log_a2.append(np.linalg.norm(self.target.position))
         self.log_e.append(e)
         self.log_i.append(i)
         self.log_raan.append(raan)
@@ -93,6 +151,7 @@ class MyApp(ShowBase):
 
     def setup_log_arrays(self):
         self.log_a = []
+        self.log_a2 = []
         self.log_e = []
         self.log_i = []
         self.log_raan = []
@@ -101,7 +160,7 @@ class MyApp(ShowBase):
 
         self.log_interval = 1 # frames between each log
         self.log_timer = self.log_interval
-        self.can_log = True # True
+        self.can_log = True
         
 
     def plot_values(self):
@@ -110,56 +169,30 @@ class MyApp(ShowBase):
         fig, axs = plt.subplots(1, 3, figsize=(15, 5))
 
         axs[0].plot(x, self.log_a, 'r' , label='a')
+        #axs[0].plot(x , self.log_a2 , 'g' , label='a2')
         axs[0].scatter(x, self.log_hoh_boost, color='purple' , label='boost')
         axs[0].set_title('Semi-major axis')
         axs[0].legend()
-        axs[0].set_ylim(0, 1100)
+        axs[0].set_ylim(0, 5)
 
         axs[1].plot(x, self.log_i, 'g' , label='inc')
         axs[1].set_title('Inclination')
         axs[1].legend()
-        axs[1].set_ylim(0 , 100)
 
-        lg_raan = self.log_raan # average_over_chunks_with_none(self.log_raan)
+        lg_raan = self.log_raan
         axs[2].plot(x, lg_raan, 'b' , label='raan')
         axs[2].set_title('Raan')
         axs[2].legend()
-        axs[2].set_ylim(0 , 370)
 
         plt.tight_layout()
         plt.show()
 
         
 
-    def setup_scene(self):
-        self.setup_log_arrays()
-
-        self.setup_skybox()
-        self.setup_camera()
-        self.setup_nodes()
-        self.setup_lights()
-
-        self.setup_hud()
+    
         
 
-    def renderer(self, task):
-
-        if not self.game_is_paused:
-            rotate_object(self.earth , [0.05 , 0 , 0])
-            rotate_object(self.cloud , [0.05 , 0 , 0])
-
-            # self.env_values_update()
-            self.otv.update(dt=DT)
-            self.target.update(dt=DT)
-            self.env_visual_update()
-            
-            self.make_hohmann_transfer()
-            # self.make_inc_transfer()
-            # self.make_raan_transfer()
-
-            self.log_values()
-
-        return Task.cont
+    
     
 
     def setup_raan_transfer_params(self):
@@ -184,7 +217,7 @@ class MyApp(ShowBase):
             rad_dir = normalize_vector(-self.otv.position)
             boost_dir = np.cross(vel_dir , rad_dir)
 
-            self.otv.velocity += raan_dv(v1=np.linalg.norm(self.otv.velocity) , raan1=0 , raan2=10) * boost_dir
+            self.otv.velocity += raan_dv(v1=np.linalg.norm(self.otv.velocity) , raan1=self.transfer_raan1 , raan2=self.transfer_raan2) * boost_dir
 
 
 
@@ -203,22 +236,38 @@ class MyApp(ShowBase):
             self.initial_delay_inc -= DT
             return
         
-        ang_thr = 5
+        ang_thr = 1
         if self.otv.elements.mean_anomaly < ang_thr or abs(self.otv.elements.mean_anomaly-180) < ang_thr:
             self.inc_boost_done = True
 
+            inc_1 = self.transfer_inc1
+            inc_2 = self.transfer_inc2
+            d_inc = inc_2 - inc_1
+            ang_ = -np.deg2rad(d_inc/2)
+
+            rad_dir = normalize_vector(self.otv.position)
+
+            # Create a rotation object from the axis and angle
+            rotation = R.from_rotvec(rad_dir * ang_)
+
             vel_dir = normalize_vector(self.otv.velocity)
-            rad_dir = normalize_vector(-self.otv.position)
-            boost_dir = np.cross(vel_dir , rad_dir)
+            top_dir = np.cross(vel_dir , rad_dir)
+
+            # Apply rotation to the vector
+            boost_dir = rotation.apply(top_dir)
+
+
+
             
-            self.otv.velocity += inc_dv(v1=np.linalg.norm(self.otv.velocity) , inc1=0 , inc2=10) * boost_dir
+            
+            self.otv.velocity += inc_dv(v1=np.linalg.norm(self.otv.velocity) , inc1=inc_1 , inc2=inc_2) * boost_dir
 
 
 
 
     def setup_hohmann_transfer_params(self):
-        self.hoh_dv1 , self.hoh_dv2 = hohmann_dv(2 , 3)
-        self.hoh_dt = hohmann_time(2 , 3)
+        self.hoh_dv1 , self.hoh_dv2 = hohmann_dv(self.hohmann_a1 , self.hohmann_a2)
+        self.hoh_dt = hohmann_time(self.hohmann_a1 , self.hohmann_a2)
 
         self.initial_delay = phase_time(otv=self.otv , target=self.target) - np.pi/4
         self.boost_1_done = False
@@ -227,9 +276,6 @@ class MyApp(ShowBase):
         self.boost_to_log = 0
 
         
-        
-        
-
     def make_hohmann_transfer(self):
         # Renderer function
         if self.boost_1_done and self.boost_2_done:
@@ -239,7 +285,6 @@ class MyApp(ShowBase):
             self.initial_delay -= DT
             return
 
-        
         if self.boost_1_done == False:
             self.boost_1_done = True
             self.boost_to_log = 1
@@ -250,13 +295,13 @@ class MyApp(ShowBase):
             self.otv.velocity += dv
             return
         
-        # print("Boost 1")
+        # Boost 1 done
         
         if self.hoh_dt > 0:
             self.hoh_dt -= DT
             return
         
-        # print("Hohmann time done")
+        # Hohmann time done
         
         if self.boost_2_done == False and self.boost_1_done == True:
             self.boost_2_done = True
@@ -268,24 +313,12 @@ class MyApp(ShowBase):
             self.otv.velocity += dv
             return
         
-        # print("Boost 2 done")
+        # Boost 2 done
 
         
-
-
-        
-
-
-
-    # def env_values_update(self):
-    #     for i in self.all_debris_planets:
-    #         i.update(dt=DT)
         
 
     def env_visual_update(self):
-        # for i in range(0 , len(self.all_debris_planets)):
-        #     position = self.all_debris_planets[i].position
-        #     self.all_debris_nodes[i].setPos(position[0] , position[1] , position[2])
 
         otv_pos = self.otv.position
         self.otv_node.setPos(otv_pos[0] , otv_pos[1] , otv_pos[2])
@@ -305,49 +338,55 @@ class MyApp(ShowBase):
 
         self.line_manager.update_line('trail_line', line_pos, color=(1, 0, 0, 1))
 
+        vel_value = np.linalg.norm(self.otv.velocity)
+
         vel_point_1 = tuple(self.otv.position)
-        vel_point_2 = tuple(vel_point_1 + normalize_vector(self.otv.velocity)*0.5)
+        vel_point_2 = tuple(vel_point_1 + 0.5*self.otv.velocity/vel_value)
         self.line_manager.update_line('vel_line', [vel_point_1, vel_point_2], color=(0, 1, 0, 1))
 
         rad_point_1 = tuple(self.otv.position + normalize_vector(-self.otv.position)*0.5)
         self.line_manager.update_line("radial_line" , [vel_point_1 , rad_point_1] , color=(0,0,1,1))
 
-        # self.update_orbital_plane()
+
+        
+
+        d_inc = self.transfer_inc2 - self.transfer_inc1
+        ang_ = -np.deg2rad(d_inc/2)
+
+        rad_dir = normalize_vector(self.otv.position)
+
+        # Create a rotation object from the axis and angle
+        rotation = R.from_rotvec(rad_dir * ang_)
+
+        vel_dir = normalize_vector(self.otv.velocity)
+        top_dir = np.cross(vel_dir , rad_dir)
+
+        # Apply rotation to the vector
+        boost_dir = rotation.apply(top_dir)
+
+        inc_v_point_2 = tuple(self.otv.position + 0.5*boost_dir/vel_value)
+        self.line_manager.update_line("inc_vel_line" , [vel_point_1 , inc_v_point_2] , color=(1,0,1,1))
+
+        new_v_inc_point_2 = tuple(vel_point_2+0.5*boost_dir/vel_value)
+        self.line_manager.update_line("new_vel_inc" , [vel_point_1 , new_v_inc_point_2] , color=(1,1,1,1))
 
 
     def setup_nodes(self):
-
         self.make_earth()
-
-
 
         self.all_debris_nodes = []
         self.all_debris_planets = []
-
-
-        self.otv , self.otv_node = self.make_object(elements=orbital_elements(inclination=0,
-                                                                              raan=0,
-                                                                              eccentricity=0,
-                                                                              arg_perigee=0,
-                                                                              mean_anomaly=0,
-                                                                              a=2))
-        
-        self.target , self.target_node = self.make_object(elements=orbital_elements(inclination=0,
-                                                                              raan=0,
-                                                                              eccentricity=0,
-                                                                              arg_perigee=0,
-                                                                              mean_anomaly=0,
-                                                                              a=3))
 
         self.otv_trail_nodes = []
         self.otv_trail_counter = 10
         self.make_otv_trail()
 
-
         self.line_manager = LineManager(self.render)
         self.line_manager.make_line('trail_line', [(0, 0, 0), (0, 0, 0)], color=(1, 0, 0, 1))
         self.line_manager.make_line('vel_line', [(0, 0, 0), (0, 0, 0)], color=(1, 0, 0, 1))
         self.line_manager.make_line('radial_line', [(0, 0, 0), (0, 0, 0)], color=(0, 0, 1, 1))
+        self.line_manager.make_line('inc_vel_line' , [(0, 0, 0), (0, 0, 0)], color=(0, 0, 1, 1))
+        self.line_manager.make_line('new_vel_inc' , [(0, 0, 0), (0, 0, 0)], color=(0, 0, 1, 1))
 
         self.setup_planes_visualisation()
         
@@ -456,9 +495,6 @@ class MyApp(ShowBase):
 
         
 
-        
-
-    
 
     def setup_lights(self):
         # Ambient light
@@ -651,7 +687,9 @@ class MyApp(ShowBase):
         self.pause_label = self.add_text_label(text="II" , pos=(1.2 , y_st))
         self.pause_label.hide()
         self.time_label = self.add_text_label(text="_" , pos=(1 , y_st-y_sp))
-        self.frames_left_label = self.add_text_label(text="_" , pos=(1 , y_st-y_sp*2))
+        
+
+        
 
         y_st = -0.9
         # Bottom left constants
@@ -659,7 +697,9 @@ class MyApp(ShowBase):
         self.label_M = self.add_text_label(text=f"M = {M}" , pos=(x_po , y_st+y_sp))
         self.label_J2 = self.add_text_label(text=f"J2 = {J2}" , pos=(x_po , y_st+y_sp*2))
         
-        
+        # Bottom right
+        self.frames_left_label = self.add_text_label(text="_" , pos=(-x_po , y_st) , alignment_mode=TextNode.ARight)
+
 
     def update_hud(self):
         i = self.otv.elements.inclination
@@ -732,11 +772,11 @@ class MyApp(ShowBase):
         
 
     def update_camera_position(self):
-        radian_angle = radians(self.angle_around_origin)
-        radian_elevation = radians(self.elevation_angle)
-        x_pos = self.distance_to_origin * sin(radian_angle) * cos(radian_elevation)
-        y_pos = -self.distance_to_origin * cos(radian_angle) * cos(radian_elevation)
-        z_pos = self.distance_to_origin * sin(radian_elevation)
+        radian_angle = np.radians(self.angle_around_origin)
+        radian_elevation = np.radians(self.elevation_angle)
+        x_pos = self.distance_to_origin * np.sin(radian_angle) * np.cos(radian_elevation)
+        y_pos = -self.distance_to_origin * np.cos(radian_angle) * np.cos(radian_elevation)
+        z_pos = self.distance_to_origin * np.sin(radian_elevation)
 
         self.camera.setPos(Vec3(x_pos, y_pos, z_pos))
         self.camera.lookAt(Point3(0, 0, 0))
@@ -763,7 +803,6 @@ class MyApp(ShowBase):
             self.update_camera_position()
         
 
-
     def make_sphere(self , size=1 , low_poly=False):
         path = "models/sphere5.obj"
         if low_poly:
@@ -773,17 +812,16 @@ class MyApp(ShowBase):
         return sphere
     
 
-
-
-    # Add a text label function
-    def add_text_label(self , text="PlaceHolder" , pos=(-1 , 1) , scale=0.07):
+    def add_text_label(self , text="PlaceHolder" , pos=(-1 , 1) , scale=0.06 , alignment_mode=TextNode.ALeft):
+        custom_font = self.loader.loadFont('textures/SF-Pro.ttf')
         text_label = OnscreenText(text=text,
-                                    pos=pos,  # Position on the screen
-                                    scale=scale,  # Text scale
-                                    fg=(1, 1, 1, 1),  # Text color (R, G, B, A)
-                                    bg=(0, 0, 0, 0.5),  # Background color (R, G, B, A)
-                                    align=TextNode.ALeft,  # Text alignment
-                                    mayChange=True)  # Allow text to change dynamically
+                                    pos=pos, # Position on the screen
+                                    scale=scale, # Text scale
+                                    fg=(1, 1, 1, 1), # Text color (R, G, B, A)
+                                    bg=(0, 0, 0, 0.5), # Background color (R, G, B, A)
+                                    align=alignment_mode, # Text alignment
+                                    font=custom_font,
+                                    mayChange=True) # Allow text to change dynamically
         return text_label
         
     def add_image(self, image_path, pos=(0, 0), scale=1, parent=None):
