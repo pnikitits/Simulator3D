@@ -12,6 +12,7 @@ from Satellite import *
 from panda3d.core import AmbientLight , DirectionalLight , Point3 , MouseButton
 from panda3d.core import Vec3 , KeyboardButton , TextureStage , TransparencyAttrib
 from panda3d.core import LightAttrib , NodePath , CardMaker , NodePath , TextNode
+from panda3d.core import AntialiasAttrib, loadPrcFileData
 
 from direct.showbase.ShowBase import ShowBase
 from direct.task import Task
@@ -21,15 +22,15 @@ from direct.gui.OnscreenImage import OnscreenImage
 
 
 
-
 class MyApp(ShowBase):
 
     def __init__(self):
         ShowBase.__init__(self)
-        self.setup_scene()
+        self.anti_antialiasing(is_on=True)
 
 
-        otv_init_elements = orbital_elements(inclination=0,
+
+        otv_init_elements = orbital_elements(inclination=20,
                                              raan=0,
                                              eccentricity=0,
                                              arg_perigee=0,
@@ -47,23 +48,24 @@ class MyApp(ShowBase):
         self.target , self.target_node = self.make_object(elements=target_init_elements)
 
 
-        self.do_hohmann = True
+        self.do_hohmann = False
         self.hohmann_a1 = 2
         self.hohmann_a2 = 3
 
-        self.do_transfer_inc = False
-        self.transfer_inc1 = 0
-        self.transfer_inc2 = 10
+        self.do_transfer_inc = True
+        self.transfer_d_inc = -30
+        self.show_transfer_inc_line = True
 
         self.do_transfer_raan = False
         self.transfer_raan1 = 0
-        self.transfer_raan2 = 10
+        self.transfer_raan2 = 0
 
 
         self.setup_hohmann_transfer_params()
         self.setup_inc_transfer_params()
         self.setup_raan_transfer_params()
 
+        self.setup_scene()
 
         self.taskMgr.add(self.check_keys, "check_keys_task")
         self.taskMgr.doMethodLater(DT, self.renderer, 'renderer')
@@ -173,16 +175,32 @@ class MyApp(ShowBase):
         axs[0].scatter(x, self.log_hoh_boost, color='purple' , label='boost')
         axs[0].set_title('Semi-major axis')
         axs[0].legend()
-        axs[0].set_ylim(0, 5)
+        axs[0].set_ylim(0, 4)
 
         axs[1].plot(x, self.log_i, 'g' , label='inc')
         axs[1].set_title('Inclination')
         axs[1].legend()
 
-        lg_raan = self.log_raan
+        # Raan data cleaning (0 --- 360)
+        lg_raan = []
+        raan_avg = np.mean(self.log_raan)
+        print("raan mean =" , raan_avg)
+        raan_go_to = 0
+        if abs(raan_avg-360) < abs(raan_avg):
+            raan_go_to = 360
+        for i in self.log_raan:
+            if i == 0 or i == 360:
+                lg_raan.append(raan_go_to)
+            else:
+                lg_raan.append(i)
+        print(raan_go_to)
+
+
+        
         axs[2].plot(x, lg_raan, 'b' , label='raan')
         axs[2].set_title('Raan')
         axs[2].legend()
+        axs[2].set_ylim(-10 , 370)
 
         plt.tight_layout()
         plt.show()
@@ -224,7 +242,7 @@ class MyApp(ShowBase):
     
 
     def setup_inc_transfer_params(self):
-        self.initial_delay_inc = 4
+        self.initial_delay_inc = 0
         self.inc_boost_done = False
 
     def make_inc_transfer(self):
@@ -240,10 +258,10 @@ class MyApp(ShowBase):
         if self.otv.elements.mean_anomaly < ang_thr or abs(self.otv.elements.mean_anomaly-180) < ang_thr:
             self.inc_boost_done = True
 
-            inc_1 = self.transfer_inc1
-            inc_2 = self.transfer_inc2
-            d_inc = inc_2 - inc_1
-            ang_ = -np.deg2rad(d_inc/2)
+            # inc_1 = self.transfer_inc1
+            # inc_2 = self.transfer_inc2
+            # d_inc = inc_2 - inc_1
+            ang_ = -np.deg2rad(self.transfer_d_inc/2)
 
             rad_dir = normalize_vector(self.otv.position)
 
@@ -257,9 +275,9 @@ class MyApp(ShowBase):
             boost_dir = rotation.apply(top_dir)
 
 
+            inc_1 = self.otv.elements.inclination
+            inc_2 = inc_1 + self.transfer_d_inc
 
-            
-            
             self.otv.velocity += inc_dv(v1=np.linalg.norm(self.otv.velocity) , inc1=inc_1 , inc2=inc_2) * boost_dir
 
 
@@ -269,7 +287,7 @@ class MyApp(ShowBase):
         self.hoh_dv1 , self.hoh_dv2 = hohmann_dv(self.hohmann_a1 , self.hohmann_a2)
         self.hoh_dt = hohmann_time(self.hohmann_a1 , self.hohmann_a2)
 
-        self.initial_delay = phase_time(otv=self.otv , target=self.target) - np.pi/4
+        self.initial_delay = phase_time(otv=self.otv , target=self.target) #- np.pi
         self.boost_1_done = False
         self.boost_2_done = False
 
@@ -349,26 +367,26 @@ class MyApp(ShowBase):
 
 
         
+        if self.show_transfer_inc_line:
+            # d_inc = self.transfer_inc2 - self.transfer_inc1
+            ang_ = -np.deg2rad(self.transfer_d_inc/2)
 
-        d_inc = self.transfer_inc2 - self.transfer_inc1
-        ang_ = -np.deg2rad(d_inc/2)
+            rad_dir = normalize_vector(self.otv.position)
 
-        rad_dir = normalize_vector(self.otv.position)
+                # Create a rotation object from the axis and angle
+            rotation = R.from_rotvec(rad_dir * ang_)
 
-        # Create a rotation object from the axis and angle
-        rotation = R.from_rotvec(rad_dir * ang_)
+            vel_dir = normalize_vector(self.otv.velocity)
+            top_dir = np.cross(vel_dir , rad_dir)
 
-        vel_dir = normalize_vector(self.otv.velocity)
-        top_dir = np.cross(vel_dir , rad_dir)
+            # Apply rotation to the vector
+            boost_dir = rotation.apply(top_dir)
 
-        # Apply rotation to the vector
-        boost_dir = rotation.apply(top_dir)
+            inc_v_point_2 = tuple(self.otv.position + 10*boost_dir/vel_value)
+            self.line_manager.update_line("inc_vel_line" , [vel_point_1 , inc_v_point_2] , color=(1,0,1,1))
 
-        inc_v_point_2 = tuple(self.otv.position + 0.5*boost_dir/vel_value)
-        self.line_manager.update_line("inc_vel_line" , [vel_point_1 , inc_v_point_2] , color=(1,0,1,1))
-
-        new_v_inc_point_2 = tuple(vel_point_2+0.5*boost_dir/vel_value)
-        self.line_manager.update_line("new_vel_inc" , [vel_point_1 , new_v_inc_point_2] , color=(1,1,1,1))
+            new_v_inc_point_2 = tuple(vel_point_2+2*boost_dir/vel_value)
+            self.line_manager.update_line("new_vel_inc" , [vel_point_1 , new_v_inc_point_2] , color=(1,1,1,1))
 
 
     def setup_nodes(self):
@@ -385,6 +403,7 @@ class MyApp(ShowBase):
         self.line_manager.make_line('trail_line', [(0, 0, 0), (0, 0, 0)], color=(1, 0, 0, 1))
         self.line_manager.make_line('vel_line', [(0, 0, 0), (0, 0, 0)], color=(1, 0, 0, 1))
         self.line_manager.make_line('radial_line', [(0, 0, 0), (0, 0, 0)], color=(0, 0, 1, 1))
+        #if self.show_transfer_inc_line:
         self.line_manager.make_line('inc_vel_line' , [(0, 0, 0), (0, 0, 0)], color=(0, 0, 1, 1))
         self.line_manager.make_line('new_vel_inc' , [(0, 0, 0), (0, 0, 0)], color=(0, 0, 1, 1))
 
@@ -848,6 +867,10 @@ class MyApp(ShowBase):
         else:
             self.pause_label.hide()
 
+    def anti_antialiasing(self , is_on):
+        if is_on:
+            loadPrcFileData('', 'multisamples 4')  # Enable MSAA
+            self.render.setAntialias(AntialiasAttrib.MAuto)
     
 
 

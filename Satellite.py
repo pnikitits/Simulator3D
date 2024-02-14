@@ -69,7 +69,6 @@ class Satellite:
         # Velocity in geocentric equatorial frame
         velocity = np.dot(R, v_perifocal)
         vx, vy, vz = velocity
-        print(f"velocity = {velocity[1]}")
         return [vx, vy, vz]
 
 
@@ -161,7 +160,6 @@ class Satellite:
         ])
         
         position = np.dot(R, np.array([x_p, y_p, 0])) # Position in geocentric equatorial coordinates
-        print(f"pos = {position}")
         return position.tolist()
     
 
