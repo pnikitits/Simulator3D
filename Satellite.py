@@ -37,7 +37,7 @@ class Satellite:
         # Ensure ν is in the range [0, 2π]
         ν = np.mod(ν, 2 * np.pi)
         
-        return np.degrees(ν) # Convert ν to degrees if needed
+        return ν
 
 
     def find_velocity_from_elements(self):

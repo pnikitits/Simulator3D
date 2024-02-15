@@ -31,11 +31,11 @@ class MyApp(ShowBase):
 
 
 
-        otv_init_elements = orbital_elements(inclination=20,
+        otv_init_elements = orbital_elements(inclination=0,
                                              raan=0,
                                              eccentricity=0,
                                              arg_perigee=0,
-                                             mean_anomaly=0,
+                                             mean_anomaly=150,
                                              a=2)
         self.otv , self.otv_node = self.make_object(elements=otv_init_elements)
         
@@ -75,8 +75,8 @@ class MyApp(ShowBase):
 
 
 
-        visualise = False
-        
+        visualise = True
+
         if visualise:
             self.taskMgr.doMethodLater(DT, self.renderer, 'renderer')
         else:
@@ -137,10 +137,13 @@ class MyApp(ShowBase):
         raan = self.otv.elements.raan
 
 
+
         e = self.otv.elements.eccentricity
         a = self.otv.elements.a
         inst_r = np.linalg.norm(self.otv.position)
 
+        d_ma = np.linalg.norm(self.otv.position - self.target.position)#self.target.elements.mean_anomaly - self.otv.elements.mean_anomaly
+        self.log_diff_mean_anomaly.append(d_ma)
 
         self.log_a.append(inst_r)
         self.log_a2.append(np.linalg.norm(self.target.position))
@@ -167,6 +170,7 @@ class MyApp(ShowBase):
         self.log_e = []
         self.log_i = []
         self.log_raan = []
+        self.log_diff_mean_anomaly = []
 
         self.log_hoh_boost = []
 
@@ -178,12 +182,12 @@ class MyApp(ShowBase):
     def plot_values(self):
 
         x = range(len(self.log_a))
-        fig, axs = plt.subplots(1, 3, figsize=(15, 5))
+        fig, axs = plt.subplots(1, 4, figsize=(15, 5))
 
-        axs[0].plot(x, self.log_a, 'r' , label='a')
+        axs[0].plot(x, self.log_a, 'r')
         #axs[0].plot(x , self.log_a2 , 'g' , label='a2')
         axs[0].scatter(x, self.log_hoh_boost, color='purple' , label='boost')
-        axs[0].set_title('Semi-major axis')
+        axs[0].set_title('Radius of orbit')
         axs[0].legend()
         axs[0].set_ylim(0, 4)
 
@@ -209,6 +213,10 @@ class MyApp(ShowBase):
         axs[2].set_title('Raan')
         axs[2].legend()
         axs[2].set_ylim(-10 , 370)
+
+        axs[3].plot(x , self.log_diff_mean_anomaly)
+        axs[3].set_title('OTV Target distance')
+        axs[3].set_ylim(0 , 2)
 
         plt.tight_layout()
         plt.show()
@@ -295,7 +303,7 @@ class MyApp(ShowBase):
         self.hoh_dv1 , self.hoh_dv2 = hohmann_dv(self.hohmann_a1 , self.hohmann_a2)
         self.hoh_dt = hohmann_time(self.hohmann_a1 , self.hohmann_a2)
 
-        self.initial_delay = phase_time(otv=self.otv , target=self.target) #- np.pi
+        self.initial_delay = algorithm_45(otv=self.otv , target=self.target)
         self.boost_1_done = False
         self.boost_2_done = False
 
