@@ -2,6 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.spatial.transform import Rotation as R
 import random
+from tqdm import tqdm
 
 from Constants import *
 from Extra import *
@@ -48,12 +49,12 @@ class MyApp(ShowBase):
         self.target , self.target_node = self.make_object(elements=target_init_elements)
 
 
-        self.do_hohmann = False
+        self.do_hohmann = True
         self.hohmann_a1 = 2
         self.hohmann_a2 = 3
 
-        self.do_transfer_inc = True
-        self.transfer_d_inc = -30
+        self.do_transfer_inc = False
+        self.transfer_d_inc = -40
         self.show_transfer_inc_line = True
 
         self.do_transfer_raan = False
@@ -68,12 +69,21 @@ class MyApp(ShowBase):
         self.setup_scene()
 
         self.taskMgr.add(self.check_keys, "check_keys_task")
-        self.taskMgr.doMethodLater(DT, self.renderer, 'renderer')
-
-
         self.accept("space" , self.on_space_pressed)
         self.game_is_paused = False
         self.accept("a" , self.on_a_pressed) # Show planes
+
+
+
+        visualise = False
+        
+        if visualise:
+            self.taskMgr.doMethodLater(DT, self.renderer, 'renderer')
+        else:
+            for _ in tqdm(range(N_log)):
+                self.renderer(None)
+
+        
         
 
         
@@ -184,7 +194,6 @@ class MyApp(ShowBase):
         # Raan data cleaning (0 --- 360)
         lg_raan = []
         raan_avg = np.mean(self.log_raan)
-        print("raan mean =" , raan_avg)
         raan_go_to = 0
         if abs(raan_avg-360) < abs(raan_avg):
             raan_go_to = 360
@@ -193,7 +202,6 @@ class MyApp(ShowBase):
                 lg_raan.append(raan_go_to)
             else:
                 lg_raan.append(i)
-        print(raan_go_to)
 
 
         
@@ -306,7 +314,6 @@ class MyApp(ShowBase):
         if self.boost_1_done == False:
             self.boost_1_done = True
             self.boost_to_log = 1
-            print(self.otv.elements.a)
 
             v_dir = normalize_vector(self.otv.velocity)
             dv = self.hoh_dv1 * v_dir
@@ -324,7 +331,6 @@ class MyApp(ShowBase):
         if self.boost_2_done == False and self.boost_1_done == True:
             self.boost_2_done = True
             self.boost_to_log = 1
-            print(self.otv.elements.a)
 
             v_dir = normalize_vector(self.otv.velocity)
             dv = self.hoh_dv2 * v_dir
