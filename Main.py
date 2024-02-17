@@ -52,10 +52,11 @@ class MyApp(ShowBase):
         self.do_hohmann = True
         self.hohmann_a1 = 2
         self.hohmann_a2 = 3
-
+        self.show_hohmann_lines = False
+ 
         self.do_transfer_inc = False
         self.transfer_d_inc = -40
-        self.show_transfer_inc_line = True
+        self.show_transfer_inc_line = False
 
         self.do_transfer_raan = False
         self.transfer_raan1 = 0
@@ -75,7 +76,7 @@ class MyApp(ShowBase):
 
 
 
-        visualise = True
+        visualise = False
 
         if visualise:
             self.taskMgr.doMethodLater(DT, self.renderer, 'renderer')
@@ -216,7 +217,7 @@ class MyApp(ShowBase):
 
         axs[3].plot(x , self.log_diff_mean_anomaly)
         axs[3].set_title('OTV Target distance')
-        axs[3].set_ylim(0 , 2)
+        axs[3].set_ylim(0 , 5)
 
         plt.tight_layout()
         plt.show()
@@ -367,8 +368,8 @@ class MyApp(ShowBase):
             if pos != (0,0,0):
                 line_pos.append(pos)
 
-
-        self.line_manager.update_line('trail_line', line_pos, color=(1, 0, 0, 1))
+        if self.show_hohmann_lines == False:
+            self.line_manager.update_line('trail_line', line_pos, color=(1, 0, 0, 1))
 
         vel_value = np.linalg.norm(self.otv.velocity)
 
@@ -376,8 +377,50 @@ class MyApp(ShowBase):
         vel_point_2 = tuple(vel_point_1 + 0.5*self.otv.velocity/vel_value)
         self.line_manager.update_line('vel_line', [vel_point_1, vel_point_2], color=(0, 1, 0, 1))
 
-        rad_point_1 = tuple(self.otv.position + normalize_vector(-self.otv.position)*0.5)
-        self.line_manager.update_line("radial_line" , [vel_point_1 , rad_point_1] , color=(0,0,1,1))
+        if self.show_hohmann_lines == False:
+            rad_point_1 = tuple(self.otv.position + normalize_vector(-self.otv.position)*0.5)
+            self.line_manager.update_line("radial_line" , [vel_point_1 , rad_point_1] , color=(0,0,1,1))
+
+        if self.show_hohmann_lines:
+            lead_angle , phase_angle , initial_phase_angle , _ = algorithm_45(otv=self.otv , target=self.target , prints=True)
+            centre_point = tuple([0,0,0])
+
+            arb_direction = [2,0,0]
+            
+
+            # self.line_manager.update_line("arb_dir" , [centre_point , tuple(arb_direction)] , color=(1,1,1,1))
+
+
+
+
+
+
+            # t0
+            otv_ang_0 = self.otv.calculate_true_anomaly()
+            target_ang_0 = self.target.calculate_true_anomaly()
+
+            otv_point = tuple(normalize_vector(self.otv.position) * 3.5)
+            target_point = tuple(normalize_vector(self.target.position) * 3.5)
+
+            self.line_manager.update_line('hohmann_otv' , [centre_point , otv_point] , color=(0, 1, 0, 1))
+            self.line_manager.update_line('hohmann_target' , [centre_point , target_point] , color=(0, 1, 0, 1))
+
+            # t1
+            zero_inc_rot_vec = np.array([0,0,2])
+            rotation = R.from_rotvec(zero_inc_rot_vec * phase_angle*0.5)
+            
+            boost_point_1 = tuple(rotation.apply(self.target.position)*0.4)
+            boost_point_2 = tuple(rotation.apply(self.target.position)*1)
+
+            # self.line_manager.update_line('hohmann_phase_ang' , [boost_point_1 , boost_point_2] , color=(1, 0, 0, 1))
+
+            # t2
+
+
+
+
+
+
 
 
         
@@ -387,7 +430,7 @@ class MyApp(ShowBase):
 
             rad_dir = normalize_vector(self.otv.position)
 
-                # Create a rotation object from the axis and angle
+            # Create a rotation object from the axis and angle
             rotation = R.from_rotvec(rad_dir * ang_)
 
             vel_dir = normalize_vector(self.otv.velocity)
@@ -420,6 +463,10 @@ class MyApp(ShowBase):
         #if self.show_transfer_inc_line:
         self.line_manager.make_line('inc_vel_line' , [(0, 0, 0), (0, 0, 0)], color=(0, 0, 1, 1))
         self.line_manager.make_line('new_vel_inc' , [(0, 0, 0), (0, 0, 0)], color=(0, 0, 1, 1))
+
+        self.line_manager.make_line('hohmann_otv' , [(0, 0, 0), (0, 0, 0)], color=(0, 0, 1, 1))
+        self.line_manager.make_line('hohmann_target' , [(0, 0, 0), (0, 0, 0)], color=(0, 0, 1, 1))
+        self.line_manager.make_line('hohmann_phase_ang' , [(0, 0, 0), (0, 0, 0)], color=(0, 0, 1, 1))
 
         self.setup_planes_visualisation()
         
@@ -708,21 +755,32 @@ class MyApp(ShowBase):
         x_po = -1.3
 
         # Top left orbital params
-        self.label_1 = self.add_text_label(text="label 1" , pos=(x_po , y_st))
-        self.label_2 = self.add_text_label(text="label 2" , pos=(x_po , y_st-y_sp))
-        self.label_3 = self.add_text_label(text="label 3" , pos=(x_po , y_st-y_sp*2))
-        self.label_4 = self.add_text_label(text="label 4" , pos=(x_po , y_st-y_sp*3))
-        self.label_5 = self.add_text_label(text="label 5" , pos=(x_po , y_st-y_sp*4))
-        self.label_6 = self.add_text_label(text="label 6" , pos=(x_po , y_st-y_sp*5))
-        self.label_7 = self.add_text_label(text="label 7" , pos=(x_po , y_st-y_sp*6))
+        self.title_1 = self.add_text_label(text="Orbital Elements:" , pos=(x_po , y_st) , scale=0.08)
+        self.label_1 = self.add_text_label(text="label 1" , pos=(x_po , y_st-y_sp))
+        self.label_2 = self.add_text_label(text="label 2" , pos=(x_po , y_st-y_sp*2))
+        self.label_3 = self.add_text_label(text="label 3" , pos=(x_po , y_st-y_sp*3))
+        self.label_4 = self.add_text_label(text="label 4" , pos=(x_po , y_st-y_sp*4))
+        self.label_5 = self.add_text_label(text="label 5" , pos=(x_po , y_st-y_sp*5))
+        self.label_6 = self.add_text_label(text="label 6" , pos=(x_po , y_st-y_sp*6))
+        self.label_7 = self.add_text_label(text="label 7" , pos=(x_po , y_st-y_sp*7))
 
         # Top right pause
-        self.pause_label = self.add_text_label(text="II" , pos=(1.2 , y_st))
+        self.pause_label = self.add_text_label(text="II" , pos=(0 , y_st))
         self.pause_label.hide()
-        self.time_label = self.add_text_label(text="_" , pos=(1 , y_st-y_sp))
+        self.time_label = self.add_text_label(text="_" , pos=(-x_po , y_st) , alignment_mode=TextNode.ARight)
         
+        # Angles
+        self.ang_1_label = self.add_text_label(text="" , pos=(-x_po , y_st-y_sp*2) , alignment_mode=TextNode.ARight)
+        self.ang_2_label = self.add_text_label(text="" , pos=(-x_po , y_st-y_sp*3) , alignment_mode=TextNode.ARight)
+        self.ang_12_diff = self.add_text_label(text="" , pos=(-x_po , y_st-y_sp*4) , alignment_mode=TextNode.ARight)
 
-        
+        # Middle Left
+        self.title_2 = self.add_text_label(text="Hohmann phasing:" , pos=(x_po , y_st-y_sp*9) , scale=0.08)
+        self.label_8 = self.add_text_label(text="label 8" , pos=(x_po , y_st-y_sp*10))
+        self.label_9 = self.add_text_label(text="label 9" , pos=(x_po , y_st-y_sp*11))
+        self.label_10 = self.add_text_label(text="label 10" , pos=(x_po , y_st-y_sp*12))
+        self.label_11 = self.add_text_label(text="label 11" , pos=(x_po , y_st-y_sp*13))
+
 
         y_st = -0.9
         # Bottom left constants
@@ -742,6 +800,8 @@ class MyApp(ShowBase):
         mean_anomaly = self.otv.elements.mean_anomaly
         a = self.otv.elements.a
 
+        true_anomaly = round(np.degrees(self.otv.calculate_true_anomaly()))
+
         i = round(i , 3)
         raan = round(raan , 3)
         e = round(e , 3)
@@ -754,12 +814,24 @@ class MyApp(ShowBase):
         self.label_2.setText(f"raan = {raan}")
         self.label_3.setText(f"e = {e}")
         self.label_4.setText(f"arg_perigee = {arg_perigee}")
-        self.label_5.setText(f"mean_anomaly = {mean_anomaly}")
+        self.label_5.setText(f"true anomaly = {true_anomaly}")
         self.label_6.setText(f"a = {a}")
         self.label_7.setText(f"")
 
+        # Angle Labels
+        angle_diff = angle_between_vectors(self.otv.position , self.target.position , self.otv.velocity)
+        self.ang_12_diff.setText(f"Diff = {round(angle_diff)}")
+
+
+        # Algorithm 45 parts
+        lead_angle , phase_angle , initial_phase_angle , T_wait = algorithm_45(otv=self.otv , target=self.target , prints=True , debug_msg=False)
+        self.label_8.setText(f"Lead angle = {round(np.degrees(lead_angle))}")
+        self.label_9.setText(f"Phase angle = {round(np.degrees(phase_angle))}")
+        self.label_10.setText(f"Angle diff = {round(np.degrees(initial_phase_angle))}")
+        self.label_11.setText(f"T wait = {round(T_wait,2)}")
+
         
-        self.time_label.setText(f"t = {round(self.initial_delay,1)}")
+        self.time_label.setText(f"")
         pc_done = int(100*len(self.log_a)/N_log)
         self.frames_left_label.setText(f"{pc_done}%")
     

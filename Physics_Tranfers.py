@@ -1,6 +1,7 @@
 import numpy as np
 from Constants import *
 from Satellite import *
+from Extra import *
 
 
 def hohmann_dv(r1 , r2):
@@ -50,77 +51,64 @@ def inc_and_raan_dv(v1 , raan1 , raan2 , inc1 , inc2):
     return 2*v1*np.sin(theta/2)
 
 
-
-
 def delta_u(r1 , r2):
     return np.pi * (1 - np.sqrt( (r1+r2) / (2*r2) ))
 
 
-def phase_time(otv:Satellite , target:Satellite):
-    
-    r1 = np.linalg.norm(otv.position)
-    r2 = np.linalg.norm(target.position)
-    ang_1 = np.deg2rad(otv.elements.mean_anomaly)
-    ang_2 = np.deg2rad(target.elements.mean_anomaly)
-
-    # Check orbits
-    if r1 == r2:
-        return 0
-    
-    # delta_u
-    du = delta_u(r1 , r2)
-    if r1 > r2:
-        reverse_du = delta_u(r2 , r1)
-        du = reverse_du
-
-    # angle diff
-    angle_diff = ang_2 - ang_1
-    if r1 < r2 and angle_diff < du:
-        angle_diff += 2*np.pi
-    elif r1 > r2 and angle_diff > du:
-        angle_diff -= 2*np.pi
-    
-    # angle velocity
-    ang_vel_1 = np.sqrt(G*M / (r1**3))
-    ang_vel_2 = np.sqrt(G*M / (r2**3))
-    
-    # phasing time
-    dt = (du - angle_diff) / (ang_vel_2 - ang_vel_1)
-    
-    return dt
 
 
+def algorithm_45(otv:Satellite , target:Satellite , prints=False , debug_msg=False):
+    """
+    Modified Algorithm 45 (page 363), diagram (page 361)
 
-def algorithm_45(otv:Satellite , target:Satellite):
+    Structure:
+        1. Compute the angular velocities [rad/s]
+        2. Compute Hohmann transfer time
+        3. Compute lead, phase and initial phase angles:
+            - we need to trigger 1st Hohmann boost when phase angle == initial phase angle
+            - if we are past the phase angle, += 360 to the angle to go
+        4. Compute the Phasing time (to wait before dv1)
+
+    In:
+        otv       : Satellite
+        target    : Satellite
+        prints    : Bool (for the HUD)
+        debug_msg : Bool
+
+    Return:
+        T_wait | lead_angle , phase_angle , initial_phase_angle , T_wait
+    """
+
+    print(f"\n----- algorithm_45 start -----\n") if debug_msg else None
 
     mu = G*M
     omega_tgt = np.sqrt(mu / target.elements.a**3)
     omega_otv = np.sqrt(mu / otv.elements.a**3)
+    print(f"omega_tgt = {omega_tgt}\nomega_otv = {omega_otv}") if debug_msg else None
 
     T_transfer = hohmann_time(otv.elements.a , target.elements.a)
-    lead_angle = omega_tgt * T_transfer
-    
-    phase_angle = lead_angle - np.pi # This must be positive
-    initial_phase_angle = np.radians(target.elements.mean_anomaly - otv.elements.mean_anomaly)
+    print(f"T_transfer = {T_transfer}") if debug_msg else None
 
-    T_wait = (phase_angle - initial_phase_angle + 2*np.pi*1) / (omega_otv - omega_tgt)
+    lead_angle = omega_tgt * T_transfer
+    print(f"lead_angle = {np.degrees(lead_angle)}") if debug_msg else None
+    
+    phase_angle = abs(lead_angle - np.pi) # This must be positive
+    print(f"phase_angle = {np.degrees(phase_angle)}") if debug_msg else None
+
+    initial_phase_angle = angle_between_vectors(otv.position , target.position , otv.velocity , deg=False)
+    print(f"initial_phase_angle = {np.degrees(initial_phase_angle)}") if debug_msg else None
+
+    angle_to_go = initial_phase_angle - phase_angle
+    if angle_to_go < 0:
+        angle_to_go += 2*np.pi
+    print(f"angle_to_go = {np.degrees(angle_to_go)}") if debug_msg else None
+ 
+    T_wait = angle_to_go / (omega_otv - omega_tgt)
+    print(f"T_wait = {T_wait}") if debug_msg else None
+
+    print(f"\n----- algorithm_45 end -----\n") if debug_msg else None
+    if prints:
+        return lead_angle , phase_angle , initial_phase_angle , T_wait
     return T_wait
 
 
-
-if __name__ == "__main__":
-    sat_1 = Satellite(orbital_elements(inclination=0,
-                                       raan=0,
-                                       eccentricity=0,
-                                       arg_perigee=0,
-                                       mean_anomaly=0,
-                                       a=2))
-    
-    sat_2 = Satellite(orbital_elements(inclination=0,
-                                       raan=0,
-                                       eccentricity=0,
-                                       arg_perigee=0,
-                                       mean_anomaly=0,
-                                       a=4))
-    
-    print(algorithm_45(otv=sat_1 , target=sat_2))

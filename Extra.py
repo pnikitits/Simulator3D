@@ -107,3 +107,18 @@ def calc_semi_minor_axis(a , e):
 
 
 
+def angle_between_vectors(pos1, pos2 , vel1 , deg=True):
+    normal_axis = np.cross(pos1 , vel1)
+    dot_product = np.dot(pos1, pos2)
+    magnitude_v1 = np.linalg.norm(pos1)
+    magnitude_v2 = np.linalg.norm(pos2)
+    cos_angle = dot_product / (magnitude_v1 * magnitude_v2)
+    angle_radians = np.arccos(np.clip(cos_angle, -1.0, 1.0))
+    cross_product = np.cross(pos1, pos2)
+    direction = np.dot(cross_product, normal_axis)
+    if direction < 0:
+        angle_radians = 2*np.pi - angle_radians
+    if deg:
+        return np.degrees(angle_radians)
+    else:
+        return angle_radians
