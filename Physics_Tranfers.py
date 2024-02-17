@@ -112,3 +112,20 @@ def algorithm_45(otv:Satellite , target:Satellite , prints=False , debug_msg=Fal
     return T_wait
 
 
+
+def simple_phase(object:Satellite , target_anomaly):
+    """
+    Calculates phasing time to reach a static point on the orbit
+
+    All in deg/day
+    """
+    object_angular_velocity = np.sqrt(G*M / object.elements.a**3)
+
+    d_ma = target_anomaly - object.elements.mean_anomaly
+
+    if d_ma < 0:
+        d_ma += 360
+        
+    phase_t =  d_ma / object_angular_velocity
+
+    return phase_t # time in days

@@ -49,12 +49,12 @@ class MyApp(ShowBase):
         self.target , self.target_node = self.make_object(elements=target_init_elements)
 
 
-        self.do_hohmann = True
+        self.do_hohmann = False
         self.hohmann_a1 = 2
         self.hohmann_a2 = 3
         self.show_hohmann_lines = False
  
-        self.do_transfer_inc = False
+        self.do_transfer_inc = True
         self.transfer_d_inc = -40
         self.show_transfer_inc_line = False
 
@@ -76,9 +76,9 @@ class MyApp(ShowBase):
 
 
 
-        visualise = False
+        self.visualise = True
 
-        if visualise:
+        if self.visualise:
             self.taskMgr.doMethodLater(DT, self.renderer, 'renderer')
         else:
             for _ in tqdm(range(N_log)):
@@ -102,12 +102,13 @@ class MyApp(ShowBase):
     def renderer(self, task):
 
         if not self.game_is_paused:
-            rotate_object(self.earth , [0.05 , 0 , 0])
-            rotate_object(self.cloud , [0.05 , 0 , 0])
-
             self.otv.update(dt=DT)
             self.target.update(dt=DT)
-            self.env_visual_update()
+
+            if self.visualise:
+                rotate_object(self.earth , [0.05 , 0 , 0])
+                rotate_object(self.cloud , [0.05 , 0 , 0])
+                self.env_visual_update()
             
             if self.do_hohmann:
                 self.make_hohmann_transfer()
@@ -231,7 +232,7 @@ class MyApp(ShowBase):
     
 
     def setup_raan_transfer_params(self):
-        self.initial_delay_raan = 3
+        self.initial_delay_raan = 0
         self.raan_boost_done = False
         
 
@@ -271,7 +272,7 @@ class MyApp(ShowBase):
             self.initial_delay_inc -= DT
             return
         
-        ang_thr = 1
+        ang_thr = 0.1
         if self.otv.elements.mean_anomaly < ang_thr or abs(self.otv.elements.mean_anomaly-180) < ang_thr:
             self.inc_boost_done = True
 
@@ -382,47 +383,16 @@ class MyApp(ShowBase):
             self.line_manager.update_line("radial_line" , [vel_point_1 , rad_point_1] , color=(0,0,1,1))
 
         if self.show_hohmann_lines:
-            lead_angle , phase_angle , initial_phase_angle , _ = algorithm_45(otv=self.otv , target=self.target , prints=True)
             centre_point = tuple([0,0,0])
 
-            arb_direction = [2,0,0]
-            
-
-            # self.line_manager.update_line("arb_dir" , [centre_point , tuple(arb_direction)] , color=(1,1,1,1))
-
-
-
-
-
-
             # t0
-            otv_ang_0 = self.otv.calculate_true_anomaly()
-            target_ang_0 = self.target.calculate_true_anomaly()
-
             otv_point = tuple(normalize_vector(self.otv.position) * 3.5)
             target_point = tuple(normalize_vector(self.target.position) * 3.5)
 
             self.line_manager.update_line('hohmann_otv' , [centre_point , otv_point] , color=(0, 1, 0, 1))
             self.line_manager.update_line('hohmann_target' , [centre_point , target_point] , color=(0, 1, 0, 1))
 
-            # t1
-            zero_inc_rot_vec = np.array([0,0,2])
-            rotation = R.from_rotvec(zero_inc_rot_vec * phase_angle*0.5)
             
-            boost_point_1 = tuple(rotation.apply(self.target.position)*0.4)
-            boost_point_2 = tuple(rotation.apply(self.target.position)*1)
-
-            # self.line_manager.update_line('hohmann_phase_ang' , [boost_point_1 , boost_point_2] , color=(1, 0, 0, 1))
-
-            # t2
-
-
-
-
-
-
-
-
         
         if self.show_transfer_inc_line:
             # d_inc = self.transfer_inc2 - self.transfer_inc1
@@ -637,24 +607,6 @@ class MyApp(ShowBase):
 
         self.visualisation_plane_is_on = False
 
-
-        # Orbital plane
-        # self.visualisation_plane_4 = self.create_plane(size=s , position=(0,0,0) , rotation=(0,0,0) , color=(1 , 1 , 1 , 0.7))
-        # self.update_orbital_plane()
-        # self.visualisation_plane_4.setAttrib(LightAttrib.makeAllOff())
-        # self.visualisation_plane_4.hide()
-
-        
-    # def update_orbital_plane(self):
-    #     data = self.otv_planet.get_orbital_elements()
-
-    #     i = data["i"]
-    #     raan = data["RAAN"]
-    #     omega = data["omega"]
-    #     nu = data["nu"]
-
-    #     self.visualisation_plane_4.setH(raan)
-    #     self.visualisation_plane_4.setP(i-90)
         
 
     def toggle_plane_visualisation(self):
@@ -762,17 +714,21 @@ class MyApp(ShowBase):
         self.label_4 = self.add_text_label(text="label 4" , pos=(x_po , y_st-y_sp*4))
         self.label_5 = self.add_text_label(text="label 5" , pos=(x_po , y_st-y_sp*5))
         self.label_6 = self.add_text_label(text="label 6" , pos=(x_po , y_st-y_sp*6))
-        self.label_7 = self.add_text_label(text="label 7" , pos=(x_po , y_st-y_sp*7))
 
         # Top right pause
         self.pause_label = self.add_text_label(text="II" , pos=(0 , y_st))
         self.pause_label.hide()
-        self.time_label = self.add_text_label(text="_" , pos=(-x_po , y_st) , alignment_mode=TextNode.ARight)
         
-        # Angles
-        self.ang_1_label = self.add_text_label(text="" , pos=(-x_po , y_st-y_sp*2) , alignment_mode=TextNode.ARight)
-        self.ang_2_label = self.add_text_label(text="" , pos=(-x_po , y_st-y_sp*3) , alignment_mode=TextNode.ARight)
-        self.ang_12_diff = self.add_text_label(text="" , pos=(-x_po , y_st-y_sp*4) , alignment_mode=TextNode.ARight)
+        # Middle Right
+        self.title_3 = self.add_text_label(text="Inclination change:" , pos=(-x_po , y_st) , scale=0.08 , alignment_mode=TextNode.ARight)
+        self.inc_label_1 = self.add_text_label(text="" , pos=(-x_po , y_st-y_sp) , alignment_mode=TextNode.ARight)
+        self.inc_label_2 = self.add_text_label(text="" , pos=(-x_po , y_st-y_sp*2) , alignment_mode=TextNode.ARight)
+        self.inc_label_3 = self.add_text_label(text="" , pos=(-x_po , y_st-y_sp*3) , alignment_mode=TextNode.ARight)
+        
+        self.title_4 = self.add_text_label(text="Raan change:" , pos=(-x_po , y_st-y_sp*6) , scale=0.08 , alignment_mode=TextNode.ARight)
+        self.raan_label_1 = self.add_text_label(text="" , pos=(-x_po , y_st-y_sp*7) , alignment_mode=TextNode.ARight)
+        self.raan_label_2 = self.add_text_label(text="" , pos=(-x_po , y_st-y_sp*8) , alignment_mode=TextNode.ARight)
+        self.raan_label_3 = self.add_text_label(text="" , pos=(-x_po , y_st-y_sp*9) , alignment_mode=TextNode.ARight)
 
         # Middle Left
         self.title_2 = self.add_text_label(text="Hohmann phasing:" , pos=(x_po , y_st-y_sp*9) , scale=0.08)
@@ -816,12 +772,22 @@ class MyApp(ShowBase):
         self.label_4.setText(f"arg_perigee = {arg_perigee}")
         self.label_5.setText(f"true anomaly = {true_anomaly}")
         self.label_6.setText(f"a = {a}")
-        self.label_7.setText(f"")
 
-        # Angle Labels
-        angle_diff = angle_between_vectors(self.otv.position , self.target.position , self.otv.velocity)
-        self.ang_12_diff.setText(f"Diff = {round(angle_diff)}")
+        
+        # Inc and Raan labels
+        phase_to_0 = simple_phase(object=self.otv , target_anomaly=0)
+        phase_to_180 = simple_phase(object=self.otv , target_anomaly=180)
 
+        self.inc_label_1.setText(f"T min = {round(min(phase_to_0 , phase_to_180),1)}")
+        self.inc_label_2.setText(f"T to 0 = {round(phase_to_0,1)}")
+        self.inc_label_3.setText(f"T to 180 = {round(phase_to_180,1)}")
+
+        phase_to_90 = simple_phase(object=self.otv , target_anomaly=90)
+        phase_to_270 = simple_phase(object=self.otv , target_anomaly=270)
+
+        self.raan_label_1.setText(f"T min = {round(min(phase_to_90 , phase_to_270),1)}")
+        self.raan_label_2.setText(f"T to 90 = {round(phase_to_90,1)}")
+        self.raan_label_3.setText(f"T to 270 = {round(phase_to_270,1)}")
 
         # Algorithm 45 parts
         lead_angle , phase_angle , initial_phase_angle , T_wait = algorithm_45(otv=self.otv , target=self.target , prints=True , debug_msg=False)
@@ -831,7 +797,7 @@ class MyApp(ShowBase):
         self.label_11.setText(f"T wait = {round(T_wait,2)}")
 
         
-        self.time_label.setText(f"")
+        
         pc_done = int(100*len(self.log_a)/N_log)
         self.frames_left_label.setText(f"{pc_done}%")
     
