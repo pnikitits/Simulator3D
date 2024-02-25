@@ -34,12 +34,12 @@ class MyApp(ShowBase):
                                              raan        = 0,
                                              eccentricity= 0,
                                              arg_perigee = 0,
-                                             mean_anomaly= 0,
+                                             mean_anomaly= 290,
                                              a           = 2*R_earth)
         self.otv , self.otv_node = self.make_object(elements=otv_init_elements)
         
         # Target
-        target_init_elements = orbital_elements(inclination = 0,
+        target_init_elements = orbital_elements(inclination = 10,
                                                 raan        = 0,
                                                 eccentricity= 0,
                                                 arg_perigee = 0,
@@ -51,13 +51,13 @@ class MyApp(ShowBase):
         # Transfers:
         # Hohmann
         self.do_hohmann = True
-        self.hohmann_a1 = 2*R_earth
-        self.hohmann_a2 = 3*R_earth
-        self.show_hohmann_lines = False
+        self.hohmann_a1 = self.otv.elements.a
+        self.hohmann_a2 = self.target.elements.a
+        self.show_hohmann_lines = True
  
         # Inclination
-        self.do_transfer_inc = False
-        self.transfer_d_inc = -20
+        self.do_transfer_inc = True
+        self.transfer_d_inc = self.otv.elements.inclination - self.target.elements.inclination
         self.show_transfer_inc_line = False
 
         # RAAN
@@ -66,9 +66,9 @@ class MyApp(ShowBase):
         self.transfer_raan2 = 0
 
 
-        self.setup_hohmann_transfer_params()
         self.setup_inc_transfer_params()
         self.setup_raan_transfer_params()
+        self.setup_hohmann_transfer_params()
 
 
         self.setup_scene()
@@ -76,10 +76,11 @@ class MyApp(ShowBase):
         self.accept("space" , self.on_space_pressed)
         self.game_is_paused = False
         self.accept("a" , self.on_a_pressed) # Show planes
+        # To check the function: elements -> pos,vel -> elements
+        self.otv_true , self.otv_true_node = self.make_object(elements=otv_init_elements)
 
 
-
-        self.visualise = False
+        self.visualise = True
 
         if self.visualise:
             self.taskMgr.doMethodLater(1/DT, self.renderer, 'renderer')
@@ -88,8 +89,7 @@ class MyApp(ShowBase):
                 self.renderer(None)
 
 
-        # To check the function: elements -> pos,vel -> elements
-        self.otv_true , self.otv_true_node = self.make_object(elements=otv_init_elements)
+        
 
         
 
@@ -266,6 +266,8 @@ class MyApp(ShowBase):
         phase_to_180 = simple_phase(object=self.otv , target_anomaly=180)
         
         self.initial_delay_inc = min(phase_to_0 , phase_to_180)
+        print(f"Inc: t_0={phase_to_0} , t_180={phase_to_180}")
+
         self.inc_boost_done = False
 
 
@@ -276,9 +278,12 @@ class MyApp(ShowBase):
 
         if self.initial_delay_inc > 0:
             self.initial_delay_inc -= DT
+            if self.initial_delay_inc < 0:
+                self.initial_delay_inc = 0
             return
         
         if self.inc_boost_done == False:
+            print(f"Do inc boost, otv true anomaly={self.otv.elements.mean_anomaly}")
             self.inc_boost_done = True
 
             ang_ = -np.deg2rad(self.transfer_d_inc/2)
@@ -323,9 +328,12 @@ class MyApp(ShowBase):
 
         if self.initial_delay > 0:
             self.initial_delay -= DT
+            if self.initial_delay < 0:
+                self.initial_delay = 0
             return
 
         if self.boost_1_done == False:
+            print("Hohmann dv1")
             self.boost_1_done = True
             self.boost_to_log = 1
 
@@ -343,6 +351,7 @@ class MyApp(ShowBase):
         # Hohmann time done
         
         if self.boost_2_done == False and self.boost_1_done == True:
+            print("Hohmann dv2")
             self.boost_2_done = True
             self.boost_to_log = 1
 
@@ -797,7 +806,7 @@ class MyApp(ShowBase):
         phase_to_90 = simple_phase(object=self.otv , target_anomaly=90)
         phase_to_270 = simple_phase(object=self.otv , target_anomaly=270)
 
-        self.raan_label_1.setText(f"T min = {round(float(min(phase_to_90 , phase_to_270)),1)}")
+        self.raan_label_1.setText(f"T min = {round(self.initial_delay_raan , 4)}")
         self.raan_label_2.setText(f"T to 90 = {round(float(phase_to_90),2)}")
         self.raan_label_3.setText(f"T to 270 = {round(float(phase_to_270),2)}")
 
@@ -806,7 +815,7 @@ class MyApp(ShowBase):
         self.label_8.setText(f"Lead angle = {round(np.degrees(lead_angle))}°")
         self.label_9.setText(f"Phase angle = {round(np.degrees(phase_angle))}°")
         self.label_10.setText(f"Angle diff = {round(np.degrees(initial_phase_angle))}°")
-        self.label_11.setText(f"T wait = {round(T_wait,2)}")
+        self.label_11.setText(f"T wait = {round(self.initial_delay,2)}")
 
         
         

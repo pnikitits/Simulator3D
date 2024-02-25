@@ -10,7 +10,6 @@ def normalize_vector(vector):
     return vector / norm
 
 
-
 def angle_between_vectors(pos1, pos2 , vel1 , deg=True):
 
     normal_axis = np.cross(pos1 , vel1)
@@ -29,8 +28,6 @@ def angle_between_vectors(pos1, pos2 , vel1 , deg=True):
     else:
         return angle_radians
     
-
-
 
 def move_object(object , xyz):
     x = object.getX()
@@ -54,81 +51,4 @@ def rotate_object(object , xyz):
 
 def clean_3vec(x):
     return [float(x[0]) , float(x[1]) , float(x[2])]
-
-# def polar_to_cartesian(angle, radius):
-#     # Convert angle to radians
-#     angle_rad = np.radians(angle)
-#     # Calculate Cartesian coordinates
-#     x = radius * np.cos(angle_rad)
-#     y = radius * np.sin(angle_rad)
-#     return [x, y]
-
-
-# def find_circular_orbit_v(central_obj , rad):
-#     return np.sqrt(G * central_obj.mass / rad)
-
-# def normalize_vector(vector):
-#     return vector / np.linalg.norm(vector)
-
-
-
-# def calculate_distance(v1 , v2):
-#     return np.linalg.norm(np.array(v2) - np.array(v1))
-
-# def calculate_vector(v1 , v2):
-#     return np.array(v2) - np.array(v1)
-
-
-
-# def calc_semi_major_axis(v , r , c_obj , G=G):
-#     """
-#     In:
-#         v : current velocity
-#         r : current orbit radius (not altitude)
-#         c_obj : centre object
-#     Out:
-#         a : semi-major axis 
-#     """
-#     M = c_obj.mass
-#     v = np.linalg.norm(v)
-
-#     p1 = -G*M
-#     p2 = 2*( (v**2)/2 - G*M/r )
-
-#     a = p1/p2
-#     return a
-
-
-# def calc_eccentricity(v , r , c_obj , G=G):
-#     """
-#     In:
-#         v : current velocity
-#         r : current orbit radius (not altitude)
-#         c_obj : centre object
-#     Out:
-#         e : eccentricity
-#     """
-#     M = c_obj.mass
-#     v = np.linalg.norm(v)
-
-#     p1 = 2*( (v**2)/2 - G*M/r ) * (r*v)**2
-#     p2 = (G*M)**2
-
-#     e = np.sqrt(1 + p1/p2)
-#     return e
-
-
-# def calc_semi_minor_axis(a , e):
-#     """
-#     In:
-#         a : semi-major axis
-#         e : eccentricity
-#     Out:
-#         b : semi-minor axis
-#     """
-#     if e > 1:
-#         e = 1
-
-#     b = a * np.sqrt(1 - e**2)
-#     return b
 
