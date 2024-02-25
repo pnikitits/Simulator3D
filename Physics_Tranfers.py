@@ -81,8 +81,8 @@ def algorithm_45(otv:Satellite , target:Satellite , prints=False , debug_msg=Fal
 
     print(f"\n----- algorithm_45 start -----\n") if debug_msg else None
 
-    target_a = target.elements.a #* 1e3
-    otv_a = otv.elements.a #* 1e3
+    target_a = target.elements.a # [m]
+    otv_a = otv.elements.a       # [m]
 
     mu = G*M
     omega_tgt = np.sqrt(mu / target_a**3)
@@ -120,8 +120,6 @@ def algorithm_45(otv:Satellite , target:Satellite , prints=False , debug_msg=Fal
 def simple_phase(object:Satellite , target_anomaly):
     """
     Calculates phasing time to reach a static point on the orbit
-
-    All in deg/day
     """
     d_ma = np.radians(target_anomaly - object.elements.mean_anomaly)
 

@@ -29,38 +29,38 @@ class MyApp(ShowBase):
         ShowBase.__init__(self)
         self.anti_antialiasing(is_on=True)
 
-
-
-        otv_init_elements = orbital_elements(inclination=0,
-                                             raan=0,
-                                             eccentricity=0,
-                                             arg_perigee=0,
-                                             mean_anomaly=0,
-                                             a=2*R_earth)
+        # OTV
+        otv_init_elements = orbital_elements(inclination = 0,
+                                             raan        = 0,
+                                             eccentricity= 0,
+                                             arg_perigee = 0,
+                                             mean_anomaly= 0,
+                                             a           = 2*R_earth)
         self.otv , self.otv_node = self.make_object(elements=otv_init_elements)
         
-
-        target_init_elements = orbital_elements(inclination=0,
-                                                raan=0,
-                                                eccentricity=0,
-                                                arg_perigee=0,
-                                                mean_anomaly=0,
-                                                a=3*R_earth)
+        # Target
+        target_init_elements = orbital_elements(inclination = 0,
+                                                raan        = 0,
+                                                eccentricity= 0,
+                                                arg_perigee = 0,
+                                                mean_anomaly= 0,
+                                                a           = 3*R_earth)
         self.target , self.target_node = self.make_object(elements=target_init_elements)
 
-        
-        self.otv_true , self.otv_true_node = self.make_object(elements=otv_init_elements)
-        
 
+        # Transfers:
+        # Hohmann
         self.do_hohmann = True
         self.hohmann_a1 = 2*R_earth
         self.hohmann_a2 = 3*R_earth
         self.show_hohmann_lines = False
  
+        # Inclination
         self.do_transfer_inc = False
         self.transfer_d_inc = -20
         self.show_transfer_inc_line = False
 
+        # RAAN
         self.do_transfer_raan = False
         self.transfer_raan1 = 0
         self.transfer_raan2 = 0
@@ -70,8 +70,8 @@ class MyApp(ShowBase):
         self.setup_inc_transfer_params()
         self.setup_raan_transfer_params()
 
-        self.setup_scene()
 
+        self.setup_scene()
         self.taskMgr.add(self.check_keys, "check_keys_task")
         self.accept("space" , self.on_space_pressed)
         self.game_is_paused = False
@@ -80,7 +80,6 @@ class MyApp(ShowBase):
 
 
         self.visualise = False
-        
 
         if self.visualise:
             self.taskMgr.doMethodLater(1/DT, self.renderer, 'renderer')
@@ -88,8 +87,9 @@ class MyApp(ShowBase):
             for _ in tqdm(range(N_log)):
                 self.renderer(None)
 
-        
-        
+
+        # To check the function: elements -> pos,vel -> elements
+        self.otv_true , self.otv_true_node = self.make_object(elements=otv_init_elements)
 
         
 
@@ -139,17 +139,13 @@ class MyApp(ShowBase):
         else:
             return
         
-        
         i = self.otv.elements.inclination
         raan = self.otv.elements.raan
-
-
-
         e = self.otv.elements.eccentricity
         inst_r = np.linalg.norm(self.otv.position / R_earth)
 
-        d_ma = np.linalg.norm(self.otv.position - self.target.position) / R_earth#self.target.elements.mean_anomaly - self.otv.elements.mean_anomaly
-        self.log_diff_mean_anomaly.append(d_ma)
+        d_ma = np.linalg.norm(self.otv.position - self.target.position) / R_earth
+        self.log_diff_pos.append(d_ma)
 
         self.log_a.append(inst_r)
         self.log_a2.append(np.linalg.norm(self.target.position))
@@ -179,12 +175,8 @@ class MyApp(ShowBase):
         self.log_e = []
         self.log_i = []
         self.log_raan = []
-
-        self.log_diff_mean_anomaly = [] # dist otv -> target
-        
+        self.log_diff_pos = [] # dist otv -> target        
         self.log_true_anomaly = []
-        
-
         self.log_hoh_boost = []
 
         self.log_interval = 1 # frames between each log
@@ -193,23 +185,23 @@ class MyApp(ShowBase):
         
 
     def plot_values(self):
-
         x = range(len(self.log_a))
         fig, axs = plt.subplots(2, 3, figsize=(15, 5))
 
+        # Radius of orbit plot
         axs[0,0].plot(x, self.log_a, 'r')
-        #axs[0].plot(x , self.log_a2 , 'g' , label='a2')
         axs[0,0].scatter(x, self.log_hoh_boost, color='purple' , label='boost')
         axs[0,0].set_title('Radius of orbit')
         axs[0,0].set_ylabel('R_earth')
         axs[0,0].legend()
         axs[0,0].set_ylim(0, 4)
 
+        # Inclination plot
         axs[0,1].plot(x, self.log_i, 'g' , label='inc')
         axs[0,1].set_title('Inclination')
         axs[0,1].legend()
 
-        # Raan data cleaning (0 --- 360)
+        # Raan data cleaning [0 , 360]
         lg_raan = []
         raan_avg = np.mean(self.log_raan)
         raan_go_to = 0
@@ -221,18 +213,18 @@ class MyApp(ShowBase):
             else:
                 lg_raan.append(i)
 
-
-        
+        # RAAN plot
         axs[0,2].plot(x, lg_raan, 'b' , label='raan')
         axs[0,2].set_title('Raan')
         axs[0,2].legend()
-        # axs[0,2].set_ylim(-10 , 370)
 
-        axs[1,0].plot(x , self.log_diff_mean_anomaly)
+        # OTV -> Target distance plot
+        axs[1,0].plot(x , self.log_diff_pos)
         axs[1,0].set_title('OTV Target distance')
         axs[1,0].set_ylabel('R_earth')
         axs[1,0].set_ylim(0 , 5)
 
+        # True anomaly plot
         axs[1,1].plot(x , self.log_true_anomaly)
         axs[1,1].set_title("True anomaly")
 
@@ -242,7 +234,7 @@ class MyApp(ShowBase):
         
 
     def setup_raan_transfer_params(self):
-        self.initial_delay_raan = 0
+        self.initial_delay_raan = 0 # To replace with the phase time to the correct anomaly
         self.raan_boost_done = False
         
 
@@ -315,8 +307,6 @@ class MyApp(ShowBase):
         self.hoh_dv1 , self.hoh_dv2 = hohmann_dv(self.hohmann_a1 , self.hohmann_a2) # a in [m]
         self.hoh_dt = hohmann_time(self.hohmann_a1 , self.hohmann_a2)
 
-        # self.hoh_dv1 *= 1e-3 # dv in [km / s]
-        # self.hoh_dv2 *= 1e-3
         print(f"Hohmann: dv1={self.hoh_dv1} , dv2={self.hoh_dv2} , t={self.hoh_dt}")
 
         self.initial_delay = algorithm_45(otv=self.otv , target=self.target)
@@ -367,9 +357,7 @@ class MyApp(ShowBase):
         
 
     def env_visual_update(self):
-
-        otv_pos = self.otv.position / R_earth
-        
+        otv_pos = self.otv.position / R_earth # Normalised position
         self.otv_node.setPos(otv_pos[0] , otv_pos[1] , otv_pos[2])
 
         target_pos = self.target.position / R_earth
@@ -379,7 +367,6 @@ class MyApp(ShowBase):
         self.otv_true.elements = self.otv.elements
         true_pos = np.array(self.otv_true.find_pos_vel()[0]) / R_earth
         self.otv_true_node.setPos(true_pos[0] , true_pos[1] , true_pos[2])
-        
         # print(f"pos diff: {np.linalg.norm(self.otv.position - true_pos * R_earth)}")
 
         self.update_otv_trail()

@@ -18,12 +18,12 @@ class orbital_elements:
                  mean_anomaly ,
                  a):
 
-        self.inclination = inclination
-        self.raan = raan
+        self.inclination = inclination   # [deg]
+        self.raan = raan                 # [deg]
         self.eccentricity = eccentricity
-        self.arg_perigee = arg_perigee
-        self.mean_anomaly = mean_anomaly
-        self.a = a
+        self.arg_perigee = arg_perigee   # [deg]
+        self.mean_anomaly = mean_anomaly # [deg]
+        self.a = a                       # [m]
 
     def __repr__(self):
         return (f"{self.__class__.__name__}("
@@ -116,10 +116,7 @@ class Satellite:
     
     
     def find_angular_velocity(self):
-        """
-        Find the angular velocity in [rad s^-1]
-        """
-        return float(np.sqrt((G*M) / (self.elements.a**3)))
+        return float(np.sqrt((G*M) / (self.elements.a**3))) # [rad / s]
 
 
 
