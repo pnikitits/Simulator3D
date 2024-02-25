@@ -35,8 +35,8 @@ class MyApp(ShowBase):
                                              raan=0,
                                              eccentricity=0,
                                              arg_perigee=0,
-                                             mean_anomaly=150,
-                                             a=2)
+                                             mean_anomaly=0,
+                                             a=2*R_earth)
         self.otv , self.otv_node = self.make_object(elements=otv_init_elements)
         
 
@@ -45,17 +45,20 @@ class MyApp(ShowBase):
                                                 eccentricity=0,
                                                 arg_perigee=0,
                                                 mean_anomaly=0,
-                                                a=3)
+                                                a=3*R_earth)
         self.target , self.target_node = self.make_object(elements=target_init_elements)
 
+        
+        self.otv_true , self.otv_true_node = self.make_object(elements=otv_init_elements)
+        
 
-        self.do_hohmann = False
-        self.hohmann_a1 = 2
-        self.hohmann_a2 = 3
+        self.do_hohmann = True
+        self.hohmann_a1 = 2*R_earth
+        self.hohmann_a2 = 3*R_earth
         self.show_hohmann_lines = False
  
-        self.do_transfer_inc = True
-        self.transfer_d_inc = -40
+        self.do_transfer_inc = False
+        self.transfer_d_inc = -20
         self.show_transfer_inc_line = False
 
         self.do_transfer_raan = False
@@ -76,10 +79,11 @@ class MyApp(ShowBase):
 
 
 
-        self.visualise = True
+        self.visualise = False
+        
 
         if self.visualise:
-            self.taskMgr.doMethodLater(DT, self.renderer, 'renderer')
+            self.taskMgr.doMethodLater(1/DT, self.renderer, 'renderer')
         else:
             for _ in tqdm(range(N_log)):
                 self.renderer(None)
@@ -105,10 +109,11 @@ class MyApp(ShowBase):
             self.otv.update(dt=DT)
             self.target.update(dt=DT)
 
-            if self.visualise:
-                rotate_object(self.earth , [0.05 , 0 , 0])
-                rotate_object(self.cloud , [0.05 , 0 , 0])
-                self.env_visual_update()
+            
+            
+            rotate_object(self.earth , [0.05 , 0 , 0])
+            rotate_object(self.cloud , [0.05 , 0 , 0])
+            self.env_visual_update()
             
             if self.do_hohmann:
                 self.make_hohmann_transfer()
@@ -141,10 +146,9 @@ class MyApp(ShowBase):
 
 
         e = self.otv.elements.eccentricity
-        a = self.otv.elements.a
-        inst_r = np.linalg.norm(self.otv.position)
+        inst_r = np.linalg.norm(self.otv.position / R_earth)
 
-        d_ma = np.linalg.norm(self.otv.position - self.target.position)#self.target.elements.mean_anomaly - self.otv.elements.mean_anomaly
+        d_ma = np.linalg.norm(self.otv.position - self.target.position) / R_earth#self.target.elements.mean_anomaly - self.otv.elements.mean_anomaly
         self.log_diff_mean_anomaly.append(d_ma)
 
         self.log_a.append(inst_r)
@@ -152,6 +156,9 @@ class MyApp(ShowBase):
         self.log_e.append(e)
         self.log_i.append(i)
         self.log_raan.append(raan)
+        
+        
+        self.log_true_anomaly.append(self.otv.elements.mean_anomaly)
 
 
         if self.boost_to_log > 0:
@@ -172,7 +179,11 @@ class MyApp(ShowBase):
         self.log_e = []
         self.log_i = []
         self.log_raan = []
-        self.log_diff_mean_anomaly = []
+
+        self.log_diff_mean_anomaly = [] # dist otv -> target
+        
+        self.log_true_anomaly = []
+        
 
         self.log_hoh_boost = []
 
@@ -184,18 +195,19 @@ class MyApp(ShowBase):
     def plot_values(self):
 
         x = range(len(self.log_a))
-        fig, axs = plt.subplots(1, 4, figsize=(15, 5))
+        fig, axs = plt.subplots(2, 3, figsize=(15, 5))
 
-        axs[0].plot(x, self.log_a, 'r')
+        axs[0,0].plot(x, self.log_a, 'r')
         #axs[0].plot(x , self.log_a2 , 'g' , label='a2')
-        axs[0].scatter(x, self.log_hoh_boost, color='purple' , label='boost')
-        axs[0].set_title('Radius of orbit')
-        axs[0].legend()
-        axs[0].set_ylim(0, 4)
+        axs[0,0].scatter(x, self.log_hoh_boost, color='purple' , label='boost')
+        axs[0,0].set_title('Radius of orbit')
+        axs[0,0].set_ylabel('R_earth')
+        axs[0,0].legend()
+        axs[0,0].set_ylim(0, 4)
 
-        axs[1].plot(x, self.log_i, 'g' , label='inc')
-        axs[1].set_title('Inclination')
-        axs[1].legend()
+        axs[0,1].plot(x, self.log_i, 'g' , label='inc')
+        axs[0,1].set_title('Inclination')
+        axs[0,1].legend()
 
         # Raan data cleaning (0 --- 360)
         lg_raan = []
@@ -211,25 +223,23 @@ class MyApp(ShowBase):
 
 
         
-        axs[2].plot(x, lg_raan, 'b' , label='raan')
-        axs[2].set_title('Raan')
-        axs[2].legend()
-        axs[2].set_ylim(-10 , 370)
+        axs[0,2].plot(x, lg_raan, 'b' , label='raan')
+        axs[0,2].set_title('Raan')
+        axs[0,2].legend()
+        # axs[0,2].set_ylim(-10 , 370)
 
-        axs[3].plot(x , self.log_diff_mean_anomaly)
-        axs[3].set_title('OTV Target distance')
-        axs[3].set_ylim(0 , 5)
+        axs[1,0].plot(x , self.log_diff_mean_anomaly)
+        axs[1,0].set_title('OTV Target distance')
+        axs[1,0].set_ylabel('R_earth')
+        axs[1,0].set_ylim(0 , 5)
+
+        axs[1,1].plot(x , self.log_true_anomaly)
+        axs[1,1].set_title("True anomaly")
 
         plt.tight_layout()
         plt.show()
 
         
-
-    
-        
-
-    
-    
 
     def setup_raan_transfer_params(self):
         self.initial_delay_raan = 0
@@ -260,8 +270,12 @@ class MyApp(ShowBase):
     
 
     def setup_inc_transfer_params(self):
-        self.initial_delay_inc = 0
+        phase_to_0 = simple_phase(object=self.otv , target_anomaly=0)
+        phase_to_180 = simple_phase(object=self.otv , target_anomaly=180)
+        
+        self.initial_delay_inc = min(phase_to_0 , phase_to_180)
         self.inc_boost_done = False
+
 
     def make_inc_transfer(self):
         # Renderer function
@@ -272,13 +286,9 @@ class MyApp(ShowBase):
             self.initial_delay_inc -= DT
             return
         
-        ang_thr = 0.1
-        if self.otv.elements.mean_anomaly < ang_thr or abs(self.otv.elements.mean_anomaly-180) < ang_thr:
+        if self.inc_boost_done == False:
             self.inc_boost_done = True
 
-            # inc_1 = self.transfer_inc1
-            # inc_2 = self.transfer_inc2
-            # d_inc = inc_2 - inc_1
             ang_ = -np.deg2rad(self.transfer_d_inc/2)
 
             rad_dir = normalize_vector(self.otv.position)
@@ -302,8 +312,12 @@ class MyApp(ShowBase):
 
 
     def setup_hohmann_transfer_params(self):
-        self.hoh_dv1 , self.hoh_dv2 = hohmann_dv(self.hohmann_a1 , self.hohmann_a2)
+        self.hoh_dv1 , self.hoh_dv2 = hohmann_dv(self.hohmann_a1 , self.hohmann_a2) # a in [m]
         self.hoh_dt = hohmann_time(self.hohmann_a1 , self.hohmann_a2)
+
+        # self.hoh_dv1 *= 1e-3 # dv in [km / s]
+        # self.hoh_dv2 *= 1e-3
+        print(f"Hohmann: dv1={self.hoh_dv1} , dv2={self.hoh_dv2} , t={self.hoh_dt}")
 
         self.initial_delay = algorithm_45(otv=self.otv , target=self.target)
         self.boost_1_done = False
@@ -354,11 +368,19 @@ class MyApp(ShowBase):
 
     def env_visual_update(self):
 
-        otv_pos = self.otv.position
+        otv_pos = self.otv.position / R_earth
+        
         self.otv_node.setPos(otv_pos[0] , otv_pos[1] , otv_pos[2])
 
-        target_pos = self.target.position
+        target_pos = self.target.position / R_earth
         self.target_node.setPos(target_pos[0] , target_pos[1] , target_pos[2])
+
+
+        self.otv_true.elements = self.otv.elements
+        true_pos = np.array(self.otv_true.find_pos_vel()[0]) / R_earth
+        self.otv_true_node.setPos(true_pos[0] , true_pos[1] , true_pos[2])
+        
+        # print(f"pos diff: {np.linalg.norm(self.otv.position - true_pos * R_earth)}")
 
         self.update_otv_trail()
         self.update_hud()
@@ -374,20 +396,20 @@ class MyApp(ShowBase):
 
         vel_value = np.linalg.norm(self.otv.velocity)
 
-        vel_point_1 = tuple(self.otv.position)
+        vel_point_1 = tuple(otv_pos)
         vel_point_2 = tuple(vel_point_1 + 0.5*self.otv.velocity/vel_value)
         self.line_manager.update_line('vel_line', [vel_point_1, vel_point_2], color=(0, 1, 0, 1))
 
         if self.show_hohmann_lines == False:
-            rad_point_1 = tuple(self.otv.position + normalize_vector(-self.otv.position)*0.5)
+            rad_point_1 = tuple(otv_pos + normalize_vector(-otv_pos)*0.5)
             self.line_manager.update_line("radial_line" , [vel_point_1 , rad_point_1] , color=(0,0,1,1))
 
         if self.show_hohmann_lines:
             centre_point = tuple([0,0,0])
 
             # t0
-            otv_point = tuple(normalize_vector(self.otv.position) * 3.5)
-            target_point = tuple(normalize_vector(self.target.position) * 3.5)
+            otv_point = tuple(normalize_vector(otv_pos) * 3.5)
+            target_point = tuple(normalize_vector(self.target.position / R_earth) * 3.5)
 
             self.line_manager.update_line('hohmann_otv' , [centre_point , otv_point] , color=(0, 1, 0, 1))
             self.line_manager.update_line('hohmann_target' , [centre_point , target_point] , color=(0, 1, 0, 1))
@@ -450,7 +472,11 @@ class MyApp(ShowBase):
         node.setPos(init_pos[0] , init_pos[1] , init_pos[2])
         node.reparentTo(self.render)
 
-        return Satellite(elements) , node
+        sat = Satellite(elements)
+        pos = sat.position
+        node.setPos(pos[0] , pos[1] , pos[2])
+
+        return sat , node
     
 
 
@@ -740,8 +766,8 @@ class MyApp(ShowBase):
 
         y_st = -0.9
         # Bottom left constants
-        self.label_G = self.add_text_label(text=f"G = {G}" , pos=(x_po , y_st))
-        self.label_M = self.add_text_label(text=f"M = {M}" , pos=(x_po , y_st+y_sp))
+        self.label_G = self.add_text_label(text=f"G = {G} m³ km⁻¹ s⁻²" , pos=(x_po , y_st))
+        self.label_M = self.add_text_label(text=f"M = {M} kg" , pos=(x_po , y_st+y_sp))
         self.label_J2 = self.add_text_label(text=f"J2 = {J2}" , pos=(x_po , y_st+y_sp*2))
         
         # Bottom right
@@ -756,44 +782,43 @@ class MyApp(ShowBase):
         mean_anomaly = self.otv.elements.mean_anomaly
         a = self.otv.elements.a
 
-        true_anomaly = round(np.degrees(self.otv.calculate_true_anomaly()))
 
-        i = round(i , 3)
-        raan = round(raan , 3)
-        e = round(e , 3)
+        i = round(float(i) , 3)
+        raan = round(float(raan))
+        e = round(float(e) , 3)
         arg_perigee = int(arg_perigee)
         mean_anomaly = int(mean_anomaly)
-        a = round(a , 3)
+        a = round(float(a)/R_earth , 3)
         
 
-        self.label_1.setText(f"i = {i}")
-        self.label_2.setText(f"raan = {raan}")
+        self.label_1.setText(f"i = {i}°")
+        self.label_2.setText(f"raan = {raan}°")
         self.label_3.setText(f"e = {e}")
-        self.label_4.setText(f"arg_perigee = {arg_perigee}")
-        self.label_5.setText(f"true anomaly = {true_anomaly}")
-        self.label_6.setText(f"a = {a}")
+        self.label_4.setText(f"arg_perigee = {arg_perigee}°")
+        self.label_5.setText(f"true anomaly = {mean_anomaly}°")
+        self.label_6.setText(f"a = {a} Rₑ")
 
         
         # Inc and Raan labels
         phase_to_0 = simple_phase(object=self.otv , target_anomaly=0)
         phase_to_180 = simple_phase(object=self.otv , target_anomaly=180)
 
-        self.inc_label_1.setText(f"T min = {round(min(phase_to_0 , phase_to_180),1)}")
-        self.inc_label_2.setText(f"T to 0 = {round(phase_to_0,1)}")
-        self.inc_label_3.setText(f"T to 180 = {round(phase_to_180,1)}")
+        self.inc_label_1.setText(f"T min = {round(float(self.initial_delay_inc),4)}")
+        self.inc_label_2.setText(f"T to 0 = {round(float(phase_to_0),2)}")
+        self.inc_label_3.setText(f"T to 180 = {round(float(phase_to_180),2)}")
 
         phase_to_90 = simple_phase(object=self.otv , target_anomaly=90)
         phase_to_270 = simple_phase(object=self.otv , target_anomaly=270)
 
-        self.raan_label_1.setText(f"T min = {round(min(phase_to_90 , phase_to_270),1)}")
-        self.raan_label_2.setText(f"T to 90 = {round(phase_to_90,1)}")
-        self.raan_label_3.setText(f"T to 270 = {round(phase_to_270,1)}")
+        self.raan_label_1.setText(f"T min = {round(float(min(phase_to_90 , phase_to_270)),1)}")
+        self.raan_label_2.setText(f"T to 90 = {round(float(phase_to_90),2)}")
+        self.raan_label_3.setText(f"T to 270 = {round(float(phase_to_270),2)}")
 
         # Algorithm 45 parts
         lead_angle , phase_angle , initial_phase_angle , T_wait = algorithm_45(otv=self.otv , target=self.target , prints=True , debug_msg=False)
-        self.label_8.setText(f"Lead angle = {round(np.degrees(lead_angle))}")
-        self.label_9.setText(f"Phase angle = {round(np.degrees(phase_angle))}")
-        self.label_10.setText(f"Angle diff = {round(np.degrees(initial_phase_angle))}")
+        self.label_8.setText(f"Lead angle = {round(np.degrees(lead_angle))}°")
+        self.label_9.setText(f"Phase angle = {round(np.degrees(phase_angle))}°")
+        self.label_10.setText(f"Angle diff = {round(np.degrees(initial_phase_angle))}°")
         self.label_11.setText(f"T wait = {round(T_wait,2)}")
 
         

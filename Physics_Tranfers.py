@@ -81,12 +81,15 @@ def algorithm_45(otv:Satellite , target:Satellite , prints=False , debug_msg=Fal
 
     print(f"\n----- algorithm_45 start -----\n") if debug_msg else None
 
+    target_a = target.elements.a #* 1e3
+    otv_a = otv.elements.a #* 1e3
+
     mu = G*M
-    omega_tgt = np.sqrt(mu / target.elements.a**3)
-    omega_otv = np.sqrt(mu / otv.elements.a**3)
+    omega_tgt = np.sqrt(mu / target_a**3)
+    omega_otv = np.sqrt(mu / otv_a**3)
     print(f"omega_tgt = {omega_tgt}\nomega_otv = {omega_otv}") if debug_msg else None
 
-    T_transfer = hohmann_time(otv.elements.a , target.elements.a)
+    T_transfer = hohmann_time(otv_a , target_a)
     print(f"T_transfer = {T_transfer}") if debug_msg else None
 
     lead_angle = omega_tgt * T_transfer
@@ -95,8 +98,9 @@ def algorithm_45(otv:Satellite , target:Satellite , prints=False , debug_msg=Fal
     phase_angle = abs(lead_angle - np.pi) # This must be positive
     print(f"phase_angle = {np.degrees(phase_angle)}") if debug_msg else None
 
+    print(otv.position , target.position , otv.velocity) if debug_msg else None
     initial_phase_angle = angle_between_vectors(otv.position , target.position , otv.velocity , deg=False)
-    print(f"initial_phase_angle = {np.degrees(initial_phase_angle)}") if debug_msg else None
+    print(f"initial_phase_angle = {(initial_phase_angle)}") if debug_msg else None
 
     angle_to_go = initial_phase_angle - phase_angle
     if angle_to_go < 0:
@@ -119,13 +123,11 @@ def simple_phase(object:Satellite , target_anomaly):
 
     All in deg/day
     """
-    object_angular_velocity = np.sqrt(G*M / object.elements.a**3)
-
-    d_ma = target_anomaly - object.elements.mean_anomaly
+    d_ma = np.radians(target_anomaly - object.elements.mean_anomaly)
 
     if d_ma < 0:
-        d_ma += 360
+        d_ma += 2*np.pi
         
-    phase_t =  d_ma / object_angular_velocity
+    phase_t =  d_ma / object.find_angular_velocity()
 
-    return phase_t # time in days
+    return phase_t # time in seconds
