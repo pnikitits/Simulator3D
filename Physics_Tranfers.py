@@ -121,7 +121,7 @@ def simple_phase(object:Satellite , target_anomaly):
     """
     Calculates phasing time to reach a static point on the orbit
     """
-    d_ma = np.radians(target_anomaly - object.elements.mean_anomaly)
+    d_ma = np.radians(target_anomaly - object.elements.mean_anomaly_360)
 
     if d_ma < 0:
         d_ma += 2*np.pi

@@ -32,16 +32,16 @@ class MyApp(ShowBase):
         # OTV
         otv_init_elements = orbital_elements(inclination = 0,
                                              raan        = 0,
-                                             eccentricity= 0,
+                                             eccentricity= 0.01,
                                              arg_perigee = 0,
-                                             mean_anomaly= 290,
+                                             mean_anomaly= 90,
                                              a           = 2*R_earth)
         self.otv , self.otv_node = self.make_object(elements=otv_init_elements)
         
         # Target
         target_init_elements = orbital_elements(inclination = 10,
                                                 raan        = 0,
-                                                eccentricity= 0,
+                                                eccentricity= 0.01,
                                                 arg_perigee = 0,
                                                 mean_anomaly= 0,
                                                 a           = 3*R_earth)
@@ -49,12 +49,6 @@ class MyApp(ShowBase):
 
 
         # Transfers:
-        # Hohmann
-        self.do_hohmann = True
-        self.hohmann_a1 = self.otv.elements.a
-        self.hohmann_a2 = self.target.elements.a
-        self.show_hohmann_lines = True
- 
         # Inclination
         self.do_transfer_inc = True
         self.transfer_d_inc = self.otv.elements.inclination - self.target.elements.inclination
@@ -65,10 +59,17 @@ class MyApp(ShowBase):
         self.transfer_raan1 = 0
         self.transfer_raan2 = 0
 
+        # Hohmann
+        self.do_hohmann = True
+        self.hohmann_a1 = self.otv.elements.a
+        self.hohmann_a2 = self.target.elements.a
+        self.show_hohmann_lines = False
+        self.boost_to_log = 0
+
 
         self.setup_inc_transfer_params()
         self.setup_raan_transfer_params()
-        self.setup_hohmann_transfer_params()
+        # self.setup_hohmann_transfer_params()
 
 
         self.setup_scene()
@@ -80,7 +81,7 @@ class MyApp(ShowBase):
         self.otv_true , self.otv_true_node = self.make_object(elements=otv_init_elements)
 
 
-        self.visualise = True
+        self.visualise = False
 
         if self.visualise:
             self.taskMgr.doMethodLater(1/DT, self.renderer, 'renderer')
@@ -115,7 +116,7 @@ class MyApp(ShowBase):
             rotate_object(self.cloud , [0.05 , 0 , 0])
             self.env_visual_update()
             
-            if self.do_hohmann:
+            if self.do_hohmann and self.inc_boost_done:
                 self.make_hohmann_transfer()
             if self.do_transfer_inc:
                 self.make_inc_transfer()
@@ -139,45 +140,52 @@ class MyApp(ShowBase):
         else:
             return
         
-        i = self.otv.elements.inclination
-        raan = self.otv.elements.raan
-        e = self.otv.elements.eccentricity
-        inst_r = np.linalg.norm(self.otv.position / R_earth)
 
-        d_ma = np.linalg.norm(self.otv.position - self.target.position) / R_earth
-        self.log_diff_pos.append(d_ma)
-
-        self.log_a.append(inst_r)
-        self.log_a2.append(np.linalg.norm(self.target.position))
-        self.log_e.append(e)
-        self.log_i.append(i)
-        self.log_raan.append(raan)
-        
-        
-        self.log_true_anomaly.append(self.otv.elements.mean_anomaly)
-
-
+        # otv:
+        self.log_otv_rad.append(np.linalg.norm(self.otv.position / R_earth))
+        self.log_otv_inc.append(self.otv.elements.inclination)
+        self.log_otv_raan.append(self.otv.elements.raan)
+        self.log_otv_nu.append(self.otv.elements.mean_anomaly_360)
         if self.boost_to_log > 0:
             self.boost_to_log = 0
-            self.log_hoh_boost.append(inst_r)
+            self.log_hoh_boost.append(np.linalg.norm(self.otv.position / R_earth))
         else:
             self.log_hoh_boost.append(None)
 
+        # target:
+        self.log_target_rad.append(np.linalg.norm(self.target.position / R_earth))
+        self.log_target_inc.append(self.target.elements.inclination)
+        self.log_target_raan.append(self.target.elements.raan)
+        self.log_target_nu.append(self.target.elements.mean_anomaly_360)
 
-        if len(self.log_a) >= N_log:
+
+        self.log_otv_target_dist.append(np.linalg.norm(self.otv.position - self.target.position) / R_earth)
+
+
+
+        if len(self.log_otv_rad) >= N_log:
             self.can_log = False
             self.plot_values()
 
 
     def setup_log_arrays(self):
-        self.log_a = []
-        self.log_a2 = []
-        self.log_e = []
-        self.log_i = []
-        self.log_raan = []
-        self.log_diff_pos = [] # dist otv -> target        
-        self.log_true_anomaly = []
+
+        # otv:
+        self.log_otv_rad = []
+        self.log_otv_inc = []
+        self.log_otv_raan = []
+        self.log_otv_nu = []
         self.log_hoh_boost = []
+
+        # target:
+        self.log_target_rad = []
+        self.log_target_inc = []
+        self.log_target_raan = []
+        self.log_target_nu = []
+
+        self.log_otv_target_dist = []
+
+
 
         self.log_interval = 1 # frames between each log
         self.log_timer = self.log_interval
@@ -185,11 +193,12 @@ class MyApp(ShowBase):
         
 
     def plot_values(self):
-        x = range(len(self.log_a))
+        x = range(len(self.log_otv_rad))
         fig, axs = plt.subplots(2, 3, figsize=(15, 5))
 
         # Radius of orbit plot
-        axs[0,0].plot(x, self.log_a, 'r')
+        axs[0,0].plot(x, self.log_otv_rad, 'r' , label='otv')
+        axs[0,0].plot(x, self.log_target_rad, 'b--' , label='target')
         axs[0,0].scatter(x, self.log_hoh_boost, color='purple' , label='boost')
         axs[0,0].set_title('Radius of orbit')
         axs[0,0].set_ylabel('R_earth')
@@ -197,35 +206,26 @@ class MyApp(ShowBase):
         axs[0,0].set_ylim(0, 4)
 
         # Inclination plot
-        axs[0,1].plot(x, self.log_i, 'g' , label='inc')
+        axs[0,1].plot(x, self.log_otv_inc, 'r' , label='otv')
+        axs[0,1].plot(x, self.log_target_inc, 'b--' , label='target')
         axs[0,1].set_title('Inclination')
         axs[0,1].legend()
 
-        # Raan data cleaning [0 , 360]
-        lg_raan = []
-        raan_avg = np.mean(self.log_raan)
-        raan_go_to = 0
-        if abs(raan_avg-360) < abs(raan_avg):
-            raan_go_to = 360
-        for i in self.log_raan:
-            if i == 0 or i == 360:
-                lg_raan.append(raan_go_to)
-            else:
-                lg_raan.append(i)
-
         # RAAN plot
-        axs[0,2].plot(x, lg_raan, 'b' , label='raan')
+        axs[0,2].plot(x, self.log_otv_raan, 'r' , label='otv')
+        axs[0,2].plot(x, self.log_target_raan, 'b--' , label='target')
         axs[0,2].set_title('Raan')
         axs[0,2].legend()
 
         # OTV -> Target distance plot
-        axs[1,0].plot(x , self.log_diff_pos)
+        axs[1,0].plot(x , self.log_otv_target_dist , 'r')
         axs[1,0].set_title('OTV Target distance')
         axs[1,0].set_ylabel('R_earth')
         axs[1,0].set_ylim(0 , 5)
 
         # True anomaly plot
-        axs[1,1].plot(x , self.log_true_anomaly)
+        axs[1,1].plot(x , self.log_otv_nu, 'r' , label='otv')
+        axs[1,1].plot(x , self.log_target_nu, 'b--' , label='target')
         axs[1,1].set_title("True anomaly")
 
         plt.tight_layout()
@@ -283,8 +283,11 @@ class MyApp(ShowBase):
             return
         
         if self.inc_boost_done == False:
-            print(f"Do inc boost, otv true anomaly={self.otv.elements.mean_anomaly}")
+            self.setup_hohmann_transfer_params()
             self.inc_boost_done = True
+            print("setup hohmann")
+            print(f"Do inc boost, otv true anomaly={self.otv.elements.mean_anomaly}")
+            
 
             ang_ = -np.deg2rad(self.transfer_d_inc/2)
 
@@ -318,7 +321,7 @@ class MyApp(ShowBase):
         self.boost_1_done = False
         self.boost_2_done = False
 
-        self.boost_to_log = 0
+        
 
         
     def make_hohmann_transfer(self):
@@ -376,7 +379,7 @@ class MyApp(ShowBase):
         self.otv_true.elements = self.otv.elements
         true_pos = np.array(self.otv_true.find_pos_vel()[0]) / R_earth
         self.otv_true_node.setPos(true_pos[0] , true_pos[1] , true_pos[2])
-        # print(f"pos diff: {np.linalg.norm(self.otv.position - true_pos * R_earth)}")
+        #print(f"pos diff: {np.linalg.norm(otv_pos - true_pos)}")
 
         self.update_otv_trail()
         self.update_hud()
@@ -775,7 +778,7 @@ class MyApp(ShowBase):
         raan = self.otv.elements.raan
         e = self.otv.elements.eccentricity
         arg_perigee = self.otv.elements.arg_perigee
-        mean_anomaly = self.otv.elements.mean_anomaly
+        mean_anomaly = self.otv.elements.mean_anomaly_360
         a = self.otv.elements.a
 
 
@@ -796,7 +799,7 @@ class MyApp(ShowBase):
 
         
         # Inc and Raan labels
-        phase_to_0 = simple_phase(object=self.otv , target_anomaly=0)
+        phase_to_0 = simple_phase(object=self.otv , target_anomaly=360)
         phase_to_180 = simple_phase(object=self.otv , target_anomaly=180)
 
         self.inc_label_1.setText(f"T min = {round(float(self.initial_delay_inc),4)}")
@@ -815,11 +818,14 @@ class MyApp(ShowBase):
         self.label_8.setText(f"Lead angle = {round(np.degrees(lead_angle))}°")
         self.label_9.setText(f"Phase angle = {round(np.degrees(phase_angle))}°")
         self.label_10.setText(f"Angle diff = {round(np.degrees(initial_phase_angle))}°")
-        self.label_11.setText(f"T wait = {round(self.initial_delay,2)}")
 
+        if self.inc_boost_done == False and self.do_transfer_inc:
+            self.label_11.setText(f"T wait = not set")
+        else:
+            self.label_11.setText(f"T wait = {round(self.initial_delay,2)}")
         
         
-        pc_done = int(100*len(self.log_a)/N_log)
+        pc_done = int(100*len(self.log_otv_rad)/N_log)
         self.frames_left_label.setText(f"{pc_done}%")
     
 

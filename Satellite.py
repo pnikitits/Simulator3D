@@ -15,8 +15,8 @@ class Satellite:
         self.position = clean_3vec(self.position)
         self.velocity = clean_3vec(self.velocity)
 
-        print(f"\nvel = {self.velocity}")
-        print(f"pos = {self.position}\n")
+        # print(f"\nvel = {self.velocity}")
+        # print(f"pos = {self.position}\n")
         
 
     def update(self , dt):
