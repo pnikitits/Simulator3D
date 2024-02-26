@@ -128,4 +128,4 @@ def simple_phase(object:Satellite , target_anomaly):
         
     phase_t =  d_ma / object.find_angular_velocity()
 
-    return phase_t # time in seconds
+    return phase_t / DT # time in seconds

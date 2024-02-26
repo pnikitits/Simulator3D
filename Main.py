@@ -34,7 +34,7 @@ class MyApp(ShowBase):
                                              raan        = 0,
                                              eccentricity= 0.01,
                                              arg_perigee = 0,
-                                             mean_anomaly= 90,
+                                             mean_anomaly= 60,
                                              a           = 2*R_earth)
         self.otv , self.otv_node = self.make_object(elements=otv_init_elements)
         
@@ -43,7 +43,7 @@ class MyApp(ShowBase):
                                                 raan        = 0,
                                                 eccentricity= 0.01,
                                                 arg_perigee = 0,
-                                                mean_anomaly= 0,
+                                                mean_anomaly= 50,
                                                 a           = 3*R_earth)
         self.target , self.target_node = self.make_object(elements=target_init_elements)
 
@@ -53,6 +53,7 @@ class MyApp(ShowBase):
         self.do_transfer_inc = True
         self.transfer_d_inc = self.otv.elements.inclination - self.target.elements.inclination
         self.show_transfer_inc_line = False
+        self.inc_boost_to_log = 0
 
         # RAAN
         self.do_transfer_raan = False
@@ -69,7 +70,7 @@ class MyApp(ShowBase):
 
         self.setup_inc_transfer_params()
         self.setup_raan_transfer_params()
-        # self.setup_hohmann_transfer_params()
+        self.setup_hohmann_transfer_params()
 
 
         self.setup_scene()
@@ -116,7 +117,7 @@ class MyApp(ShowBase):
             rotate_object(self.cloud , [0.05 , 0 , 0])
             self.env_visual_update()
             
-            if self.do_hohmann and self.inc_boost_done:
+            if self.do_hohmann and (self.inc_boost_done or not self.do_transfer_inc):
                 self.make_hohmann_transfer()
             if self.do_transfer_inc:
                 self.make_inc_transfer()
@@ -124,6 +125,10 @@ class MyApp(ShowBase):
                 self.make_raan_transfer()
 
             self.log_values()
+
+            if abs(self.otv.elements.mean_anomaly - 360) < 2:
+                self.on_space_pressed()
+                
 
         return Task.cont
         
@@ -152,12 +157,19 @@ class MyApp(ShowBase):
         else:
             self.log_hoh_boost.append(None)
 
+        if self.inc_boost_to_log > 0:
+            self.inc_boost_to_log = 0
+            self.log_inc_boost.append(self.otv.elements.inclination)
+        else:
+            self.log_inc_boost.append(None)
+        self.log_otv_ang_vel.append(np.degrees(self.otv.find_angular_velocity()))
+
         # target:
         self.log_target_rad.append(np.linalg.norm(self.target.position / R_earth))
         self.log_target_inc.append(self.target.elements.inclination)
         self.log_target_raan.append(self.target.elements.raan)
         self.log_target_nu.append(self.target.elements.mean_anomaly_360)
-
+        self.log_target_ang_vel.append(np.degrees(self.target.find_angular_velocity()))
 
         self.log_otv_target_dist.append(np.linalg.norm(self.otv.position - self.target.position) / R_earth)
 
@@ -176,12 +188,15 @@ class MyApp(ShowBase):
         self.log_otv_raan = []
         self.log_otv_nu = []
         self.log_hoh_boost = []
+        self.log_inc_boost = []
+        self.log_otv_ang_vel = []
 
         # target:
         self.log_target_rad = []
         self.log_target_inc = []
         self.log_target_raan = []
         self.log_target_nu = []
+        self.log_target_ang_vel = []
 
         self.log_otv_target_dist = []
 
@@ -208,13 +223,16 @@ class MyApp(ShowBase):
         # Inclination plot
         axs[0,1].plot(x, self.log_otv_inc, 'r' , label='otv')
         axs[0,1].plot(x, self.log_target_inc, 'b--' , label='target')
+        axs[0,1].scatter(x, self.log_inc_boost, color='purple' , label='boost')
         axs[0,1].set_title('Inclination')
+        axs[0,1].set_ylabel('Degrees')
         axs[0,1].legend()
 
         # RAAN plot
         axs[0,2].plot(x, self.log_otv_raan, 'r' , label='otv')
         axs[0,2].plot(x, self.log_target_raan, 'b--' , label='target')
         axs[0,2].set_title('Raan')
+        axs[0,2].set_ylabel('Degrees')
         axs[0,2].legend()
 
         # OTV -> Target distance plot
@@ -227,6 +245,15 @@ class MyApp(ShowBase):
         axs[1,1].plot(x , self.log_otv_nu, 'r' , label='otv')
         axs[1,1].plot(x , self.log_target_nu, 'b--' , label='target')
         axs[1,1].set_title("True anomaly")
+        axs[1,1].set_ylabel('Degrees')
+        axs[1,1].legend()
+
+        # Angular velocity plot
+        axs[1,2].plot(x , self.log_otv_ang_vel , 'r' , label='otv')
+        axs[1,2].plot(x , self.log_target_ang_vel , 'b--' , label='target')
+        axs[1,2].set_title("Angular velocity")
+        axs[1,2].set_ylabel('Degrees / ?')
+        axs[1,2].legend()
 
         plt.tight_layout()
         plt.show()
@@ -263,10 +290,10 @@ class MyApp(ShowBase):
 
     def setup_inc_transfer_params(self):
         phase_to_0 = simple_phase(object=self.otv , target_anomaly=0)
-        phase_to_180 = simple_phase(object=self.otv , target_anomaly=180)
+        #phase_to_180 = simple_phase(object=self.otv , target_anomaly=180)
         
-        self.initial_delay_inc = min(phase_to_0 , phase_to_180)
-        print(f"Inc: t_0={phase_to_0} , t_180={phase_to_180}")
+        self.initial_delay_inc = phase_to_0 # min(phase_to_0 , phase_to_180)
+        print(f"Inc: t_0={phase_to_0}")# , t_180={phase_to_180}")
 
         self.inc_boost_done = False
 
@@ -276,17 +303,29 @@ class MyApp(ShowBase):
         if self.inc_boost_done:
             return
 
-        if self.initial_delay_inc > 0:
-            self.initial_delay_inc -= DT
-            if self.initial_delay_inc < 0:
-                self.initial_delay_inc = 0
+        # if self.initial_delay_inc > 0:
+        #     self.initial_delay_inc -= DT
+        #     if self.initial_delay_inc < 0:
+        #         self.initial_delay_inc = 0
+        #     return
+
+        nu = self.otv.elements.mean_anomaly_360
+        thr = 1
+        # if nu < thr or (360-nu)< thr:
+        #     print(nu)
+        # else:
+        #     return
+        
+        if abs(180-nu) < thr:
+            print(nu)
+        else:
             return
         
         if self.inc_boost_done == False:
             self.setup_hohmann_transfer_params()
             self.inc_boost_done = True
-            print("setup hohmann")
-            print(f"Do inc boost, otv true anomaly={self.otv.elements.mean_anomaly}")
+            self.inc_boost_to_log = 1
+            print(f"Do inc boost, otv true anomaly={self.otv.elements.mean_anomaly_360} , {self.otv.elements.arg_perigee}")
             
 
             ang_ = -np.deg2rad(self.transfer_d_inc/2)
@@ -315,7 +354,7 @@ class MyApp(ShowBase):
         self.hoh_dv1 , self.hoh_dv2 = hohmann_dv(self.hohmann_a1 , self.hohmann_a2) # a in [m]
         self.hoh_dt = hohmann_time(self.hohmann_a1 , self.hohmann_a2)
 
-        print(f"Hohmann: dv1={self.hoh_dv1} , dv2={self.hoh_dv2} , t={self.hoh_dt}")
+        #print(f"Hohmann: dv1={self.hoh_dv1} , dv2={self.hoh_dv2} , t={self.hoh_dt}")
 
         self.initial_delay = algorithm_45(otv=self.otv , target=self.target)
         self.boost_1_done = False
@@ -821,7 +860,7 @@ class MyApp(ShowBase):
 
         if self.inc_boost_done == False and self.do_transfer_inc:
             self.label_11.setText(f"T wait = not set")
-        else:
+        elif self.do_transfer_inc or not self.do_transfer_inc:
             self.label_11.setText(f"T wait = {round(self.initial_delay,2)}")
         
         
