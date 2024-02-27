@@ -55,6 +55,41 @@ def delta_u(r1 , r2):
     return np.pi * (1 - np.sqrt( (r1+r2) / (2*r2) ))
 
 
+def algorithm_40(otv:Satellite , target:Satellite , debug_msg=False):
+    """
+    Algorithm 40 (page 347), equation (6-23)
+
+    Note: the inclinations are assumed to be the same (inc boost done before)
+
+    In:
+        otv       : Satellite
+        target    : Satellite
+        debug_msg : Bool
+
+    Return:
+        dv_raan_only
+        u_final [rad]
+        theta   [rad]
+    """
+
+    # Equation (6-23) (page 346)
+    i_initial = otv.elements.inclination # [deg]
+    d_raan = target.elements.raan - otv.elements.raan # [deg]
+    i_initial = np.radians(i_initial) # [rad]
+    d_raan = np.radians(d_raan) # [rad]
+
+    theta = np.arccos(np.cos(i_initial)**2 + np.cos(d_raan) * np.sin(i_initial)**2) # [rad]
+
+    # Equation (6-24) (page 347)
+    v_initial = np.linalg.norm(otv.velocity)
+    dv_raan_only = 2 * v_initial * np.sin(theta / 2)
+
+    # Equation (6-22) (page 346): u = ω + ν (= argp + true anomaly)
+    u_final = np.arccos(np.cos(i_initial) * np.sin(i_initial) * ( (1-np.cos(d_raan)) / np.sin(theta) ) ) # [rad]
+    
+
+    return dv_raan_only , u_final , theta
+
 
 
 def algorithm_45(otv:Satellite , target:Satellite , prints=False , debug_msg=False):

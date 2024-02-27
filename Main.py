@@ -40,7 +40,7 @@ class MyApp(ShowBase):
         
         # Target
         target_init_elements = orbital_elements(inclination = 10,
-                                                raan        = 0,
+                                                raan        = 200,
                                                 eccentricity= 0.01,
                                                 arg_perigee = 0,
                                                 mean_anomaly= 50,
@@ -269,21 +269,31 @@ class MyApp(ShowBase):
         # Renderer function
         if self.raan_boost_done:
             return
+        
 
-        if self.initial_delay_raan > 0:
-            self.initial_delay_raan -= DT
+        dv_raan_only , u_final , theta = algorithm_40(otv=self.otv , target=self.target)
+        nu_boost = np.degrees(u_final) - self.otv.elements.arg_perigee # should check the range of arg_perigee
+        thr = 1
+        nu_otv = self.otv.elements.mean_anomaly_360
+
+        if abs(nu_boost - nu_otv) < thr:
+            print(nu_otv)
+        else:
             return
         
-        ang_thr = 5
-        if abs(self.otv.elements.mean_anomaly-90) < ang_thr or abs(self.otv.elements.mean_anomaly-270) < ang_thr:
+        if self.raan_boost_done == False:
             self.raan_boost_done = True
 
+            print(f"Do raan boost, otv true anomaly={self.otv.elements.mean_anomaly_360}")
+            
+            rad_dir = normalize_vector(self.otv.position)
             vel_dir = normalize_vector(self.otv.velocity)
-            rad_dir = normalize_vector(-self.otv.position)
-            boost_dir = np.cross(vel_dir , rad_dir)
+            top_dir = np.cross(vel_dir , rad_dir)
 
-            self.otv.velocity += raan_dv(v1=np.linalg.norm(self.otv.velocity) , raan1=self.transfer_raan1 , raan2=self.transfer_raan2) * boost_dir
+            rotation = R.from_rotvec(rad_dir * theta)
+            boost_dir = rotation.apply(top_dir)
 
+            self.otv.velocity += boost_dir * dv_raan_only
 
 
     
