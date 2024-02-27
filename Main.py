@@ -56,14 +56,11 @@ class MyApp(ShowBase):
         self.inc_boost_to_log = 0
 
         # RAAN
-        self.do_transfer_raan = False
-        self.transfer_raan1 = 0
-        self.transfer_raan2 = 0
+        self.do_transfer_raan = True
+        self.raan_boost_to_log = 0
 
         # Hohmann
         self.do_hohmann = True
-        self.hohmann_a1 = self.otv.elements.a
-        self.hohmann_a2 = self.target.elements.a
         self.show_hohmann_lines = False
         self.boost_to_log = 0
 
@@ -117,12 +114,13 @@ class MyApp(ShowBase):
             rotate_object(self.cloud , [0.05 , 0 , 0])
             self.env_visual_update()
             
-            if self.do_hohmann and (self.inc_boost_done or not self.do_transfer_inc):
-                self.make_hohmann_transfer()
+            
             if self.do_transfer_inc:
                 self.make_inc_transfer()
-            if self.do_transfer_raan:
+            if self.do_transfer_raan and self.inc_boost_done:
                 self.make_raan_transfer()
+            if self.do_hohmann and self.raan_boost_done:
+                self.make_hohmann_transfer()
 
             self.log_values()
 
@@ -151,6 +149,7 @@ class MyApp(ShowBase):
         self.log_otv_inc.append(self.otv.elements.inclination)
         self.log_otv_raan.append(self.otv.elements.raan)
         self.log_otv_nu.append(self.otv.elements.mean_anomaly_360)
+
         if self.boost_to_log > 0:
             self.boost_to_log = 0
             self.log_hoh_boost.append(np.linalg.norm(self.otv.position / R_earth))
@@ -162,7 +161,21 @@ class MyApp(ShowBase):
             self.log_inc_boost.append(self.otv.elements.inclination)
         else:
             self.log_inc_boost.append(None)
+
+        if self.raan_boost_to_log > 0:
+            self.raan_boost_to_log = 0
+            self.log_raan_boost.append(self.otv.elements.raan)
+        else:
+            self.log_raan_boost.append(None)
+
         self.log_otv_ang_vel.append(np.degrees(self.otv.find_angular_velocity()))
+
+        _ , u_final , _ = algorithm_40(otv=self.otv , target=self.target)
+        nu_boost = np.degrees(u_final) - self.otv.elements.arg_perigee
+        nu_otv = self.otv.elements.mean_anomaly_360
+        diff = abs(nu_boost - nu_otv)
+        
+        self.log_raan_u.append(min(diff, 360 - diff))
 
         # target:
         self.log_target_rad.append(np.linalg.norm(self.target.position / R_earth))
@@ -189,7 +202,10 @@ class MyApp(ShowBase):
         self.log_otv_nu = []
         self.log_hoh_boost = []
         self.log_inc_boost = []
+        self.log_raan_boost = []
         self.log_otv_ang_vel = []
+
+        self.log_raan_u = []
 
         # target:
         self.log_target_rad = []
@@ -231,6 +247,7 @@ class MyApp(ShowBase):
         # RAAN plot
         axs[0,2].plot(x, self.log_otv_raan, 'r' , label='otv')
         axs[0,2].plot(x, self.log_target_raan, 'b--' , label='target')
+        axs[0,2].scatter(x, self.log_raan_boost, color='purple' , label='boost')
         axs[0,2].set_title('Raan')
         axs[0,2].set_ylabel('Degrees')
         axs[0,2].legend()
@@ -249,10 +266,11 @@ class MyApp(ShowBase):
         axs[1,1].legend()
 
         # Angular velocity plot
-        axs[1,2].plot(x , self.log_otv_ang_vel , 'r' , label='otv')
-        axs[1,2].plot(x , self.log_target_ang_vel , 'b--' , label='target')
-        axs[1,2].set_title("Angular velocity")
-        axs[1,2].set_ylabel('Degrees / ?')
+        # axs[1,2].plot(x , self.log_otv_ang_vel , 'r' , label='otv')
+        # axs[1,2].plot(x , self.log_target_ang_vel , 'b--' , label='target')
+        # axs[1,2].set_title("Angular velocity")
+        # axs[1,2].set_ylabel('Degrees / ?')
+        axs[1,2].plot(x , self.log_raan_u)
         axs[1,2].legend()
 
         plt.tight_layout()
@@ -273,16 +291,20 @@ class MyApp(ShowBase):
 
         dv_raan_only , u_final , theta = algorithm_40(otv=self.otv , target=self.target)
         nu_boost = np.degrees(u_final) - self.otv.elements.arg_perigee # should check the range of arg_perigee
-        thr = 1
-        nu_otv = self.otv.elements.mean_anomaly_360
+        thr = 0.5
+        nu_otv = self.otv.elements.mean_anomaly
+
 
         if abs(nu_boost - nu_otv) < thr:
-            print(nu_otv)
+            pass
         else:
             return
         
         if self.raan_boost_done == False:
+            self.setup_hohmann_transfer_params() # inc -> raan -> hohmann
+
             self.raan_boost_done = True
+            self.raan_boost_to_log = 1
 
             print(f"Do raan boost, otv true anomaly={self.otv.elements.mean_anomaly_360}")
             
@@ -290,7 +312,7 @@ class MyApp(ShowBase):
             vel_dir = normalize_vector(self.otv.velocity)
             top_dir = np.cross(vel_dir , rad_dir)
 
-            rotation = R.from_rotvec(rad_dir * theta)
+            rotation = R.from_rotvec(rad_dir * (-theta/2))
             boost_dir = rotation.apply(top_dir)
 
             self.otv.velocity += boost_dir * dv_raan_only
@@ -327,12 +349,13 @@ class MyApp(ShowBase):
         #     return
         
         if abs(180-nu) < thr:
-            print(nu)
+            pass#print(nu)
         else:
             return
         
         if self.inc_boost_done == False:
-            self.setup_hohmann_transfer_params()
+            self.setup_raan_transfer_params() # inc -> raan -> hohmann
+
             self.inc_boost_done = True
             self.inc_boost_to_log = 1
             print(f"Do inc boost, otv true anomaly={self.otv.elements.mean_anomaly_360} , {self.otv.elements.arg_perigee}")
@@ -361,6 +384,9 @@ class MyApp(ShowBase):
 
 
     def setup_hohmann_transfer_params(self):
+        self.hohmann_a1 = self.otv.elements.a
+        self.hohmann_a2 = self.target.elements.a
+        #print(self.hohmann_a1/R_earth , self.hohmann_a2/R_earth)
         self.hoh_dv1 , self.hoh_dv2 = hohmann_dv(self.hohmann_a1 , self.hohmann_a2) # a in [m]
         self.hoh_dt = hohmann_time(self.hohmann_a1 , self.hohmann_a2)
 
@@ -385,7 +411,7 @@ class MyApp(ShowBase):
             return
 
         if self.boost_1_done == False:
-            print("Hohmann dv1")
+            print(f"Hohmann dv1, at r={np.linalg.norm(self.otv.position)/R_earth}")
             self.boost_1_done = True
             self.boost_to_log = 1
 
@@ -403,7 +429,7 @@ class MyApp(ShowBase):
         # Hohmann time done
         
         if self.boost_2_done == False and self.boost_1_done == True:
-            print("Hohmann dv2")
+            print(f"Hohmann dv2, at r={np.linalg.norm(self.otv.position)/R_earth}")
             self.boost_2_done = True
             self.boost_to_log = 1
 
