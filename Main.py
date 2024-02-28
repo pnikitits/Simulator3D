@@ -30,7 +30,7 @@ class MyApp(ShowBase):
         self.anti_antialiasing(is_on=True)
 
         # OTV
-        otv_init_elements = orbital_elements(inclination = 0,
+        otv_init_elements = orbital_elements(inclination = 20,
                                              raan        = 0,
                                              eccentricity= 0.01,
                                              arg_perigee = 0,
@@ -291,11 +291,12 @@ class MyApp(ShowBase):
 
         dv_raan_only , u_final , theta = algorithm_40(otv=self.otv , target=self.target)
         nu_boost = np.degrees(u_final) - self.otv.elements.arg_perigee # should check the range of arg_perigee
-        thr = 0.5
+        thr = 1.0
         nu_otv = self.otv.elements.mean_anomaly
 
-
-        if abs(nu_boost - nu_otv) < thr:
+        diff = abs(nu_boost - nu_otv)
+        
+        if min(diff, 360 - diff) < thr:
             pass
         else:
             return
