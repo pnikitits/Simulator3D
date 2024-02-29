@@ -30,22 +30,22 @@ class MyApp(ShowBase):
         self.anti_antialiasing(is_on=True)
 
         # OTV
-        otv_init_elements = orbital_elements(inclination = 20,
-                                             raan        = 0,
+        random_elements_1 = orbital_elements(inclination = np.random.uniform(0, 180),
+                                             raan        = np.random.uniform(0, 360),
                                              eccentricity= 0.01,
-                                             arg_perigee = 0,
-                                             mean_anomaly= 60,
+                                             arg_perigee = np.random.uniform(0, 360),
+                                             mean_anomaly= np.random.uniform(-180, 180),
                                              a           = 2*R_earth)
-        self.otv , self.otv_node = self.make_object(elements=otv_init_elements)
         
-        # Target
-        target_init_elements = orbital_elements(inclination = 10,
-                                                raan        = 200,
-                                                eccentricity= 0.01,
-                                                arg_perigee = 0,
-                                                mean_anomaly= 50,
-                                                a           = 3*R_earth)
-        self.target , self.target_node = self.make_object(elements=target_init_elements)
+        random_elements_2 = orbital_elements(inclination = np.random.uniform(0, 180),
+                                             raan        = np.random.uniform(0, 360),
+                                             eccentricity= 0.01,
+                                             arg_perigee = np.random.uniform(0, 360),
+                                             mean_anomaly= np.random.uniform(-180, 180),
+                                             a           = 3*R_earth)
+        
+        self.otv , self.otv_node = self.make_object(elements=random_elements_1)
+        self.target , self.target_node = self.make_object(elements=random_elements_2)
 
 
         # Transfers:
@@ -76,7 +76,7 @@ class MyApp(ShowBase):
         self.game_is_paused = False
         self.accept("a" , self.on_a_pressed) # Show planes
         # To check the function: elements -> pos,vel -> elements
-        self.otv_true , self.otv_true_node = self.make_object(elements=otv_init_elements)
+        self.otv_true , self.otv_true_node = self.make_object(elements=random_elements_1)
 
 
         self.visualise = False
@@ -258,20 +258,20 @@ class MyApp(ShowBase):
         axs[1,0].set_ylabel('R_earth')
         axs[1,0].set_ylim(0 , 5)
 
-        # True anomaly plot
-        axs[1,1].plot(x , self.log_otv_nu, 'r' , label='otv')
-        axs[1,1].plot(x , self.log_target_nu, 'b--' , label='target')
-        axs[1,1].set_title("True anomaly")
-        axs[1,1].set_ylabel('Degrees')
-        axs[1,1].legend()
+        # # True anomaly plot
+        # axs[1,1].plot(x , self.log_otv_nu, 'r' , label='otv')
+        # axs[1,1].plot(x , self.log_target_nu, 'b--' , label='target')
+        # axs[1,1].set_title("True anomaly")
+        # axs[1,1].set_ylabel('Degrees')
+        # axs[1,1].legend()
 
         # Angular velocity plot
         # axs[1,2].plot(x , self.log_otv_ang_vel , 'r' , label='otv')
         # axs[1,2].plot(x , self.log_target_ang_vel , 'b--' , label='target')
         # axs[1,2].set_title("Angular velocity")
         # axs[1,2].set_ylabel('Degrees / ?')
-        axs[1,2].plot(x , self.log_raan_u)
-        axs[1,2].legend()
+        # # axs[1,2].plot(x , self.log_raan_u)
+        # axs[1,2].legend()
 
         plt.tight_layout()
         plt.show()
